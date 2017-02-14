@@ -66,7 +66,7 @@ When you run `electron` this should open up a window on start up that says "Hell
 
 
 ### A 3D Application
-Download this project and put it in your root project.
+Download [this project](https://github.com/shiya/electron-tutorial/raw/solution/electron-tutorial-solution/visual-reports.zip) and put it in your root project.
 
 Change the path of your entry `html` file.
 
