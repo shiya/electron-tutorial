@@ -1,0 +1,40 @@
+{
+  "version": 1.0,
+  "extension": {
+    "js": {
+      "headers":
+        {
+          "Content-Encoding": "gzip",
+          "cache-control": "max-age=172800, public"
+        }
+    },
+    "json": {
+      "headers":
+        {
+          "Content-Encoding": "gzip",
+          "cache-control": "max-age=172800, public"
+        }
+    },
+    "css": {
+      "headers":
+        {
+          "Content-Encoding": "gzip",
+          "cache-control": "max-age=172800, public"
+        }
+    },
+    "dds": {
+       "headers":
+           {
+               "Content-Encoding": "gzip",
+               "cache-control": "max-age=172800, public"
+           }
+    },
+    "png": {
+       "headers":
+           {
+               "cache-control": "max-age=172800, public"
+           }
+    }
+
+  }
+}

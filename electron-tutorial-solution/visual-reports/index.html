@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<!--[if lt IE 7]>
+<html class="no-js ie6 oldie" lang="en"></html>
+<![endif]--><!--[if IE 7]>
+<html class="no-js ie7 oldie" lang="en"></html>
+<![endif]--><!--[if IE 8]>
+<html class="no-js ie8 oldie" lang="en"></html>
+<![endif]--><!--[if gte IE 8]>
+<html class="no-js" lang="en"></html>
+<![endif]-->
+<head>
+    <meta charset="utf-8" />
+    <meta content="IE=edge,chrome=1" http-equiv="X-UA-Compatible" />
+    <title>Visual Reports</title>
+    <meta content="Autodesk Developer Showcase Application" name="description" />
+    <meta content="Autodesk" name="author" />
+    <meta content="3D Model Viewer" name="keywords" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+
+    <link href="https://fonts.googleapis.com/css?family=Open+Sans:400italic,600italic,700italic,400,600,700" rel="stylesheet" type="text/css" />
+    <link href="stylesheets/libs/normalize.css" rel="stylesheet" type="text/css" />
+    <link href="./stylesheets/app.css" rel="stylesheet" type="text/css" />
+
+</head>
+
+<body onload="loadInitialModel();" oncontextmenu="return debugging;">
+
+  <!-- Inspector column -->
+  <div class="project-info-column">
+
+    <div class="project-info-selector">
+      <label for="pu_modelToLoad">Model</label>
+      <select id="pu_modelToLoad" class="" name="modelToLoad">
+          <!-- Options filled in by function in LoadModel.js -->
+      </select>
+    </div>
+
+    <div class="project-info-selector">
+      <label for="pu_viewToLoad">Secondary View</label>
+      <select id="pu_viewToLoad" class="" name="viewToLoad">
+          <!-- Options filled in by function in LoadModel.js -->
+      </select>
+    </div>
+
+    <ul class="tab-buttons" id="tab_buttons">
+      <li class="tab-button active">
+          <a href="#tab_panel_1" id="tab_button_1"><span class="icon icon-large icon-report"></span><span>Reports</span></a>
+      </li>
+      <li class="tab-button">
+          <a href="#tab_panel_4" id="tab_button_4"><span class="icon icon-large icon-theme"></span><span>Themes</span></a>
+      </li>
+    </ul>
+
+    <div class="tab-panel active" id="tab_panel_1">
+      <div class="report-select">
+        <span class="report-select-mask">Type</span>
+        <select id="pu_reportToRun" class="select-light report-select-input" name="reportToRun" disabled>
+          <!-- Options filled in by function in Report_PieChart.js -->
+        </select>
+      </div>
+
+      <div id="reportinput"></div>
+      <div class="svgcanvas">
+        <div id="pieChart">
+        </div>
+        <div id="barChart">
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab_panel_4">
+      <div class="report-select">
+        <span class="report-select-mask">No theme selected</span>
+        <select id="pu_colorTheme" class="select-light report-select-input" name="colorTheme">
+        </select>
+        <!--
+        <button id="thmbtn" type="button">Add Theme</button>
+        -->
+        <input id="nonpropchckbx" type="checkbox">
+      </div>
+
+      <div class="svgcanvas">
+        <div id="themetitle">
+        </div>
+        <div id="themecanvas">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="viewer-group">
+      <!-- 3D Model Viewer -->
+      <div class="project-container group" id="viewerMain-panel">
+        <div id="handle">Handle</div>
+        <div class="project-view-column">
+            <div id="viewerMain">
+            <!-- Upon the viewer initialization, it will append a div to the above div to insert the viewer.  It
+                 will use 100% width and height so that it will fill up whatever the above div's dimensions are.
+                 NOTE: Height must be set for this object. -->
+            </div>
+        </div>
+      </div>
+
+      <!-- 2D Model Viewer -->
+      <div class="project-container group" id="viewerSecondary-panel">
+          <div class="project-view-column">
+            <div id="viewerSecondary">
+                <!-- Upon the viewer initialization, it will append a div to the above div to insert the viewer.  It
+                     will use 100% width and height so that it will fill up whatever the above div's dimensions are.
+                     NOTE: Height must be set for this object. -->
+            </div>
+        </div>
+      </div>
+    </div>
+
+  <link href="./stylesheets/libs/nv.d3.css" rel="stylesheet">
+  <!-- local viewer3d files for local testing only, use cdn from developer.api.autodesk.com -->
+  <link rel="stylesheet" href="./viewer3d/2.11/style.min.css" type="text/css">
+  <script src="./viewer3d/2.11/viewer3D.min.js"></script>
+
+  <!--<link rel="stylesheet" href="https://developer.api.autodesk.com/viewingservice/v1/viewers/style.min.css?v=v2.10" type="text/css">
+  <script src="https://developer.api.autodesk.com/viewingservice/v1/viewers/viewer3D.js?v=v2.10"></script>-->
+  <script src="dist/app.bundle.js" charset="utf-8"></script>
+</body>

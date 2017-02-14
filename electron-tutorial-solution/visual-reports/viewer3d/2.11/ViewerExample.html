@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Viewer API Demo : @buildnum@</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <meta charset="utf-8">
+
+    <link rel="stylesheet" href="style.css" type="text/css">
+
+    <script src="viewer3D.min.js"></script>
+    <script src="jquery-2.0.3.min.js"></script>
+
+    <script>
+        var viewers = [];
+        function initialize() {
+            Autodesk.Viewing.Private.initializeEnvironmentVariable();
+            Autodesk.Viewing.Private.initializeServiceEndPoints();
+            Autodesk.Viewing.Private.initializeAuth();
+
+            // On click of these divs, instantiate some viewers and load some geometry.
+            //
+            $('#viewer1').click(function(e)
+            {
+                viewers[0] = loadDocument('viewer1', 'urn:dXJuOmFkc2suczM6ZGVyaXZlZC5maWxlOnRyYW5zbGF0aW9uXzI1X3Rlc3RpbmcvRFdGL0Nhci5kd2Y=', Autodesk.Viewing.Private.GuiViewer2D, {'type':'geometry', 'role':'2d'});
+                $('#viewer1').unbind('click');
+            });
+
+            $('#viewer2').click(function(e)
+            {
+                viewers[1] = loadDocument('viewer2', 'urn:dXJuOmFkc2subml0cm9nZW46ZnMuZmlsZToxNDE5NGQyNTYxOWE0NTdmOWQzN2ZlMDk5YTMyNjc2MQ==', Autodesk.Viewing.Viewer3D, {'type':'geometry', 'role':'3d'});
+                $('#viewer2').unbind('click');
+            });
+
+            $('#viewer3').click(function(e)
+            {
+                viewers[2] = loadDocument('viewer3', 'urn:dXJuOmFkc2subml0cm9nZW46ZnMuZmlsZTo1NGI2YmVhZDRiZGM0NDRkOWNmMzNlZTEzNTJmMzZlMA==', Autodesk.Viewing.Private.GuiViewer3D, {'type':'geometry', 'role':'3d'});
+                $('#viewer3').unbind('click');
+            });
+        }
+
+        function loadDocument(containerId, documentId, viewerClass, geometryFilter) {
+            // Create and initialize the given viewer in the given container.
+            //
+            var viewerContainer = document.getElementById(containerId);
+            var viewer = new viewerClass(viewerContainer, {});
+            viewer.initialize();
+
+            // Load the given document.  When loaded, find the requested geometry type
+            // and load its viewable into the viewer.
+            //
+            Autodesk.Viewing.Document.load(documentId,
+                function(document) { // onLoadCallback
+                    var rootItem = document.getRootItem();
+                    var geometryItems = Autodesk.Viewing.Document.getSubItemsWithProperties(rootItem, geometryFilter, true);
+
+                    // Load the first geometry.
+                    //
+                    viewer.load(document.getViewablePath(geometryItems[0]));
+                },
+                function(msg) { // onErrorCallback
+                }
+            );
+
+            return viewer;
+        }
+    </script>
+</head>
+
+<body onload="initialize();">
+    <div id="viewer1" style="position:absolute; left:0px; width:600px; height:400px; border-color: black; overflow-y: scroll; overflow-x:scroll; border-style:solid; border-width: 1px;"></div>
+    <div id="viewer2" style="position:absolute; left:600px; width:600px; height:400px; border-color: black; overflow-y: scroll; overflow-x:auto; border-style:solid; border-width: 1px;"></div>
+    <div id="viewer3" style="position:absolute; left:0px; top:400px; width:1200px; height:600px; border-color: black; overflow-y: scroll; overflow-x:auto; border-style:solid; border-width: 1px;"></div>
+</body>
+
+</html>

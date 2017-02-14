@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: src/application/ViewingApplication.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: src/application/ViewingApplication.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/** @license Copyright (c) 2013 Autodesk Inc. */
+/** Version : @buildnum@ */
+
+(function() {
+
+"use strict";
+
+var av = Autodesk.Viewing;
+var avp = Autodesk.Viewing.Private;
+
+/**
+ * Attach ViewingApplication to a div by id
+ * and initializes common properties of the viewing application
+ *
+ * @class
+ * @alias Autodesk.Viewing.ViewingApplication
+ * @param {string} containerId - The id of the main container
+ * @param {Object=} [options] - An optional dictionary of options.
+ * @param {bool} [options.disableBrowserContextMenu=true] - Disables the browser's default context menu.
+ * @constructor
+ */
+var ViewingApplication = function(containerId, options) {
+    this.appContainerId = containerId;
+    this.container = document.getElementById(containerId);
+    this.options = options;
+    this.myRegisteredViewers = {};
+    this.myDocument = null;
+    this.myCurrentViewer = null;
+    this.urn = null;
+    this.selectedItem = null;
+};
+
+/**
+ * Defines the 3D viewer type
+ */
+ViewingApplication.prototype.k3D = '3D';
+/**
+ * Defines the 2D viewer type
+ */
+ViewingApplication.prototype.k2D = '2D';
+
+
+/**
+ * Performs any necessary cleanup to allow the object to be garbage collected
+ */
+ViewingApplication.prototype.finish = function() {
+    if (this.myCurrentViewer) {
+        this.myCurrentViewer.finish();
+        this.myCurrentViewer = null;
+    }   
+};
+
+/**
+ * Register a Viewer to be used with this ViewingApplication
+ *
+ * @param {} viewableType
+ * @param {} viewerClass
+ * @param {} config
+ */
+ViewingApplication.prototype.registerViewer = function(viewableType, viewerClass, config) {
+    // Pass the disableBrowserContextMenu option down to the viewer config.
+    //
+    config = config || {};
+    if (this.options &amp;&amp; this.options.hasOwnProperty("disableBrowserContextMenu")) {
+        // Don't override if the option was already explicitly specified.
+        //
+        if (!config.hasOwnProperty("disableBrowserContextMenu")) {
+            config.disableBrowserContextMenu = this.options.disableBrowserContextMenu;
+        }
+    }
+
+    this.myRegisteredViewers[viewableType] = {};
+    this.myRegisteredViewers[viewableType].class = viewerClass;
+    this.myRegisteredViewers[viewableType].config = config;
+};
+
+ViewingApplication.prototype.getViewerClass = function(viewableType) {
+    return this.myRegisteredViewers.hasOwnProperty(viewableType) ? this.myRegisteredViewers[viewableType].class : null;
+};
+
+/**
+ * Returns the container that will be used by the viewer
+ * By default uses the same container as the appContainer
+ * This method can be overridden to specify a different
+ * sub container for the viewer
+ *
+ * @return MemberExpression
+ */
+ViewingApplication.prototype.getViewerContainer = function() {
+    return document.getElementById(this.appContainerId);
+};
+
+/**
+ * Returns a new instance of a Viewer of requested type
+ *
+ * @param {string} viewableType
+ * @param {Object} config - Viewer configuration override.
+ * @param {function(int,string)} onErrorCallback - this method is called when the viewer failed to initialize.
+ * @return Viewer or null
+ */
+ViewingApplication.prototype.getViewer = function(viewableType, config, onErrorCallback) {
+    if (viewableType in this.myRegisteredViewers) {
+
+        // Merge the config object provided here with the config object provided
+        // when the viewer type was registered. The former takes precedence.
+        //
+        var mergedConfig = {};
+        var registeredViewerConfig = this.myRegisteredViewers[viewableType].config;
+        var name;
+
+        for (name in registeredViewerConfig) {
+            if (registeredViewerConfig.hasOwnProperty(name)) {
+                mergedConfig[name] = registeredViewerConfig[name];
+            }
+        }
+        for (name in config) {
+            if (config.hasOwnProperty(name)) {
+
+                var configValue = config[name],
+                    configValueIsArray = Array.isArray(configValue),
+                    mergedConfigValue = mergedConfig[name],
+                    mergedConfigValueIsArray = Array.isArray(mergedConfigValue);
+
+                // If neither config value is an array, then the config value passed to
+                // getViewer() overwrites the config value registered for this viewer.
+                //
+                if (!configValueIsArray || !mergedConfigValueIsArray) {
+                    mergedConfig[name] = configValue;
+
+                } else {
+
+                    // But if one or the other config value is an array, then let's
+                    // concatenate them. We need to make them both arrays to do that:
+                    // they might be null/undefined, or they might be strings.
+                    //
+                    if (configValue) {
+                        if (!configValueIsArray) {
+                            configValue = [configValue];
+                        }
+                    } else {
+                        configValue = [];
+                    }
+                    if (mergedConfigValue) {
+                        if (!mergedConfigValueIsArray) {
+                            mergedConfigValue = [mergedConfigValue];
+                        }
+                    } else {
+                        mergedConfigValue = [];
+                    }
+                    mergedConfig[name] = mergedConfigValue.concat(configValue);
+
+                }
+            }
+        }
+
+        var viewerClass = this.myRegisteredViewers[viewableType].class;
+
+        if (this.myCurrentViewer &amp;&amp; this.myCurrentViewer.__proto__.constructor === viewerClass) {
+            this.myCurrentViewer.tearDown();
+            this.myCurrentViewer.setUp(mergedConfig);
+            return this.myCurrentViewer;
+        }
+
+        this.setCurrentViewer(null);
+
+        // If previous viewer.initialize() failed, then clean it up now.
+        // This might happen if, for instance, we had a 3d viewer but
+        // WebGL is not supported.
+        // TODO: need a better solution
+        //
+        var container = this.getViewerContainer();
+        while (container.hasChildNodes()) {
+            container.removeChild(container.lastChild);
+        }
+
+        var viewer = new viewerClass(container, mergedConfig);
+        var viewerInitCode = viewer.start();
+        if (viewerInitCode === 0) {        // There were no errors initializing.
+            this.setCurrentViewer(viewer);
+            return viewer;
+        }
+        else {  // Initialization returned an error code.
+            if (onErrorCallback)
+                onErrorCallback( viewerInitCode, "Viewer failed to initialize" );
+        }
+    }
+    return null;
+};
+
+/**
+ * Sets this ViewingApplication's viewer to the provided viewer
+ *
+ *  @param {} viewer
+ */
+ViewingApplication.prototype.setCurrentViewer = function(viewer) {
+    if (this.myCurrentViewer) {
+        this.myCurrentViewer.finish();
+    }
+    this.myCurrentViewer = viewer;
+};
+
+/**
+ * Returns the currently set Viewer
+ *
+ *  @return Viewer
+ */
+ViewingApplication.prototype.getCurrentViewer = function() {
+    return this.myCurrentViewer;
+};
+
+/**
+ * Asynchronously loads the document given its documentId
+ * On success: Calls onDocumentLoadedCallback
+ * On error: Calls onDocumentFailedToLaod callback
+ *
+ * @param {} documentId
+ * @param {function} [onDocumentLoad]
+ * @param {function} [onLoadFailed]
+ * @param {dictionary} accessControlProperties - An optional list of key value pairs as access control properties, which includes a list of
+ *  access control header name and values, and an OAuth 2.0 access token.
+ */
+ViewingApplication.prototype.loadDocument = function(documentId, onDocumentLoad, onLoadFailed, accessControlProperties) {
+    var that = this;
+
+    if (avp.logger) {
+        avp.logger.log({
+            category : "load_document",
+            urn: (documentId.indexOf("urn:") == 0) ? documentId.substring(4) : documentId
+        });
+    }
+
+    av.Document.load(documentId,
+        function(document, errorsandwarnings) { // onLoadCallback
+            that.myDocument = document;
+            that.onDocumentLoaded(document, errorsandwarnings);
+            if (onDocumentLoad) {
+                onDocumentLoad(document, errorsandwarnings);
+            }
+        },
+        function(errorCode, errorMsg, statusCode, statusText, errors) { // onErrorCallback
+            that.onDocumentFailedToLoad(errorMsg, errorCode, errors);
+            if (onLoadFailed)
+                onLoadFailed(errorCode, errorMsg, statusCode, statusText, errors);
+        },
+        accessControlProperties
+    );
+};
+
+/**
+ * Default success callback for loadDocument
+ * Logs the document that was loaded on console
+ *
+ * @param {} document
+ */
+ViewingApplication.prototype.onDocumentLoaded = function(document, errorsandwarnings) {
+    console.log(document, errorsandwarnings);
+};
+
+/**
+ * Default success callback for documentFailedToLoad
+ * Logs the document that was loaded on console
+ *
+ * @param {string} errorCode - globalized error code.
+ * @param {string} errorMsg  - error message to display
+ * @parma {Array}  errors    - list of errors that come from other clients (translators)
+ */
+ViewingApplication.prototype.onDocumentFailedToLoad = function( errorCode, errorMsg, errors ) {
+    console.log(errorCode, errorMsg, errors);
+};
+
+/**
+ * Given a list of geometry items, possibly fetched through Autodesk.Viewing.Document.getSubItemsWithProperties,
+ * it will return 1 single item from the list that should be the first one to be loaded.
+ * The method will attempt to find the item marked with attribute 'useAsDefault' with true.
+ * When none is found, it will return the first element from the list.
+ *
+ * @param {Array} geometryItems
+ * @return {Object} item element contained in geometryItems
+ */
+ViewingApplication.prototype.getDefaultGeometry = function(geometryItems) {
+    // Attempt to find the item marked with 'useAsDefault'
+    for (var i= 0, len=geometryItems.length; i&lt;len; ++i) {
+        var isDefault = geometryItems[i]['useAsDefault'];
+        if (isDefault === true || isDefault === 'true') {
+            return geometryItems[i];
+        }
+    }
+    return geometryItems[0];
+};
+
+/**
+ * Asynchronously loads an individual item from a document into the correct viewer
+ *
+ * @param {} item
+ * @param {} onSuccessCallback - This call back is called when the item is selected
+ * @param {} onErrorCallback - This call back is called when the item fails to select.
+ * @return Boolean
+ */
+ViewingApplication.prototype.selectItem = function(item, onSuccessCallback, onErrorCallback) {
+    var urnToLoad = this.myDocument.getViewablePath(item);
+
+    if (urnToLoad) {
+        var viewerType, viewItem, title, viewGeometryItem, modelUnits;
+        if (item.type === 'geometry' &amp;&amp; item.role === '3d') {
+            // This is for the case that initial view is a child of geometry in some DWF files
+            // Set this view's camera as initial camera
+            //var children = item.children;
+            //if (children) {
+            //    for (var i in children) {
+            //        if (children.hasOwnProperty(i) &amp;&amp; children[i].type === 'view') {
+            //            viewItem = children[i];
+            //            break;
+            //        }
+            //    }
+            //}
+            // This is for Revit files that have model units in bubble.json
+            var properties = item.properties;
+            if (properties) {
+                for (var i in properties) {
+                    if (properties.hasOwnProperty(i) &amp;&amp; properties[i]._UnitLinear) {
+                        modelUnits = properties[i]._UnitLinear;
+                        break;
+                    }
+                }
+            }
+            viewerType = this.k3D;
+            title = item.name;
+            viewGeometryItem = item;
+        } else if (item.type === "view" &amp;&amp; item.role === "3d") {
+            viewItem = item;
+            viewerType = this.k3D;
+            viewGeometryItem = this.myDocument.getViewGeometry(item);
+            if (viewGeometryItem) {
+                title = viewGeometryItem.name;
+            }
+        } else if (item.type === 'geometry' &amp;&amp; item.role === '2d') {
+            var subitems = Autodesk.Viewing.Document.getSubItemsWithProperties(item, {
+                'mime': 'application/autodesk-f2d'
+            }, false);
+
+            if (subitems.length >0)
+                viewerType= this.k3D;
+            else
+                viewerType = this.k2D;
+            title = item.name;
+            viewGeometryItem = item;
+        } else if (item.type === 'view' &amp;&amp; item.role === '2d') {
+            viewItem = item;
+            viewerType = this.k3D;
+            viewGeometryItem = this.myDocument.getViewGeometry(item);
+            if (viewGeometryItem) {
+                title = viewGeometryItem.name;
+            }
+        }
+
+        var logger = avp.logger;
+        if (logger) {
+            var idx = urnToLoad.indexOf("urn:");
+            logger.log({
+                category : "load_viewable",
+                role : item.role,
+                type : item.type,
+                urn: (idx !== -1) ? urnToLoad.substring(idx+4) : urnToLoad
+            });
+        }
+        
+
+        // Check if there are any warnign or errors from translators.
+        // Exclude the global ones (ones from the root node).
+        var messages = this.myDocument.getMessages( item, true );
+
+        if(viewerType) {
+            var self = this;
+            var urnAlreadyLoaded = (this.myCurrentViewer &amp;&amp; this.urn === urnToLoad);
+            var onLoadCallback = null;
+
+            if (viewItem &amp;&amp; viewItem.camera) {
+                onLoadCallback = function() {
+                    self.myCurrentViewer.setViewFromArray(viewItem.camera, viewItem.name);
+                    if (modelUnits) {
+                        self.myCurrentViewer.setModelUnits(modelUnits);
+                    }
+                    if(onSuccessCallback) {
+                        onSuccessCallback(self.myCurrentViewer, item, messages );
+                    }
+                };
+            } else if (viewItem &amp;&amp; viewItem.viewbox) {
+                onLoadCallback = function() {
+                    self.myCurrentViewer.setViewFromViewBox(viewItem.viewbox, viewItem.name);
+                    if (modelUnits) {
+                        self.myCurrentViewer.setModelUnits(modelUnits);
+                    }
+                    if(onSuccessCallback) {
+                        onSuccessCallback(self.myCurrentViewer, item, messages );
+                    }
+                };
+            } else if (urnAlreadyLoaded) {
+                onLoadCallback = function() {
+                    self.myCurrentViewer.setViewFromFile();
+                    if (modelUnits) {
+                        self.myCurrentViewer.setModelUnits(modelUnits);
+                    }
+                    if(onSuccessCallback) {
+                        onSuccessCallback(self.myCurrentViewer, item, messages );
+                    }
+                };
+            } else {
+                onLoadCallback = function() {
+                    if (modelUnits) {
+                        self.myCurrentViewer.setModelUnits(modelUnits);
+                    }
+                    if(onSuccessCallback) {
+                        onSuccessCallback(self.myCurrentViewer, item, messages );
+                    }
+                };
+            }
+
+            var onFailedToLoadCallback = function( errorCode, errorMsg, statusCode, statusText ) {
+                if (onErrorCallback)
+                    onErrorCallback( errorCode, errorMsg, statusCode, statusText, messages );
+            };
+
+            var loaded = false;
+
+            if (urnAlreadyLoaded) {
+                if (onLoadCallback) {
+                    onLoadCallback();
+                }
+                loaded = true;
+
+            } else {
+                this.urn = null;
+                var config = {defaultModelStructureTitle: title, viewableName: title};
+
+                // Add any extensions to the config.
+                //
+                if(item.hasOwnProperty('extensions')) {
+                    config.extensions = Array.isArray(item.extensions) ? item.extensions : [item.extensions];
+                }
+
+                var viewer = this.getViewer(viewerType, config, onErrorCallback);
+                if (viewer &amp;&amp; viewer.load(this.myDocument.getFullPath(urnToLoad), this.myDocument.getPropertyDbPath(), onLoadCallback, onFailedToLoadCallback)) {
+                    this.urn = urnToLoad;
+                    loaded = true;
+                }
+            }
+
+            if (loaded) {
+                this.selectedItem = item;
+                this.onItemSelected(item, viewGeometryItem);
+                return true;
+            }
+        }
+    }
+
+    return false;
+};
+
+/**
+ * Called when selectItem successfully loads an item
+ *
+ * @param {Object} item - can be either type 'view' or 'geometry'.
+ * @param {Object} viewGeometryItem - can only be type 'geometry'. Will be the same as item if item is type 'geometry'.
+ */
+ViewingApplication.prototype.onItemSelected = function(item, viewGeometryItem) {
+    stderr('Selected URL: http://' + location.host + location.pathname + '?document=urn:' + this.myDocument.getRootItem().guid + '&amp;item=' + encodeURIComponent(item.guid));
+
+    // notify observers a new item was selected.
+    if(this.itemSelectedObservers) {
+        var currentViewer = this.getCurrentViewer();
+        for(var i = 0; i &lt; this.itemSelectedObservers.length; ++i){
+            var observer = this.itemSelectedObservers[i];
+            observer.onItemSelected &amp;&amp; observer.onItemSelected(currentViewer, item, viewGeometryItem);
+        }
+    }
+};
+
+/**
+ * Adds objects to be notified when a new item is selected in the browser tree
+ *
+ * @param {object} observer Should implement function onItemSelected(viewer);
+ */
+ViewingApplication.prototype.addItemSelectedObserver = function(observer) {
+
+    if(!this.itemSelectedObservers) {
+        this.itemSelectedObservers = [];
+    }
+    this.itemSelectedObservers.push(observer);
+};
+
+/**
+ * Finds the item within the current document and calls selectItem
+ * @param {int} itemId
+ * @param {function} [onItemSelectedCallback] - This call back is called when the item is selected
+ * @param {function} [onItemFailedToSelectCallback] - This call back is called when the item fails to select
+ * @return Boolean
+ */
+ViewingApplication.prototype.selectItemById = function(itemId, onItemSelectedCallback, onItemFailedToSelectCallback) {
+    var item = this.myDocument.getItemById(itemId);
+    if (item) {
+        return this.selectItem(item, onItemSelectedCallback, onItemFailedToSelectCallback);
+    }
+    return false;
+};
+
+/**
+ * Returns the node object containing metadata associated to the model currently loaded in the viewer
+ * @returns {null|Object}
+ */
+ViewingApplication.prototype.getSelectedItem = function() {
+    return this.selectedItem;
+};
+
+
+av.ViewingApplication = ViewingApplication;
+
+})();
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Autodesk.Viewing.ApplicationScreenModeDelegate.html">ApplicationScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.Comments.CommentsExtension.html">CommentsExtension</a></li><li><a href="Autodesk.Viewing.Document.html">Document</a></li><li><a href="Autodesk.Viewing.Extension.html">Extension</a></li><li><a href="Autodesk.Viewing.Extensions.FirstPerson.FirstPersonExtension.html">FirstPersonExtension</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.CreateCircle.html">CreateCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.DeleteCircle.html">DeleteCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditAction.html">EditAction</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditMode.html">EditMode</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditModeCircle.html">EditModeCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.Markup.html">Markup</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupRectangle.html">MarkupRectangle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore.html">MarkupsCore</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.SetCircle.html">SetCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Measure.MeasureExtension.html">MeasureExtension</a></li><li><a href="Autodesk.Viewing.FileLoader.html">FileLoader</a></li><li><a href="Autodesk.Viewing.GuiViewer3D.html">GuiViewer3D</a></li><li><a href="Autodesk.Viewing.HotkeyManager.html">HotkeyManager</a></li><li><a href="Autodesk.Viewing.Initializer.html">Initializer</a></li><li><a href="Autodesk.Viewing.Model.html">Model</a></li><li><a href="Autodesk.Viewing.NullScreenModeDelegate.html">NullScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.Private.Preferences.html">Preferences</a></li><li><a href="Autodesk.Viewing.Private.ViewerState.html">ViewerState</a></li><li><a href="Autodesk.Viewing.ScreenModeDelegate.html">ScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.ToolController.html">ToolController</a></li><li><a href="Autodesk.Viewing.ToolInterface.html">ToolInterface</a></li><li><a href="Autodesk.Viewing.UI.Button.html">Button</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html">ComboButton</a></li><li><a href="Autodesk.Viewing.UI.Control.html">Control</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html">ControlGroup</a></li><li><a href="Autodesk.Viewing.UI.DockingPanel.html">DockingPanel</a></li><li><a href="Autodesk.Viewing.UI.ObjectContextMenu.html">ObjectContextMenu</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html">RadioButtonGroup</a></li><li><a href="Autodesk.Viewing.UI.SettingsPanel.html">SettingsPanel</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html">ToolBar</a></li><li><a href="Autodesk.Viewing.Viewer3D.html">Viewer3D</a></li><li><a href="Autodesk.Viewing.ViewingApplication.html">ViewingApplication</a></li><li><a href="Autodesk.Viewing.ViewingUtilities.html">ViewingUtilities</a></li></ul><h3>Events</h3><ul><li><a href="Autodesk.Viewing.UI.Button.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Button.html#event:STATE_CHANGED">STATE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Button.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:STATE_CHANGED">STATE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Control.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Control.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:ACTIVE_BUTTON_CHANGED">ACTIVE_BUTTON_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li></ul><h3>Tutorials</h3><ul><li>feature_markup</li></ul>
+</nav>
+
+<br clear="both">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.3.0-alpha11</a> on Fri Apr 15 2016 17:19:51 GMT+0800 (CST)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

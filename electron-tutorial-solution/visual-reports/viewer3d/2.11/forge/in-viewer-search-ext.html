@@ -1,0 +1,112 @@
+
+<head>
+    <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1, user-scalable=no" />
+    <meta charset="utf-8">
+
+    <!-- The Viewer CSS -->
+    <link rel="stylesheet" href="https://developer.api.autodesk.com/viewingservice/v1/viewers/style.min.css" type="text/css">
+
+    <!-- Developer CSS -->
+    <style>
+        body {
+            margin: 0;
+        }
+        #MyViewerDiv {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            background-color: #F0F8FF;
+        }
+    </style>
+</head>
+
+
+<body>
+
+    <!-- The Viewer will be instantiated here -->
+    <div id="MyViewerDiv"></div>
+
+
+    <!-- The Viewer JS -->
+    <script src="https://developer.api.autodesk.com/viewingservice/v1/viewers/three.min.js"></script>
+    <script src="https://developer.api.autodesk.com/viewingservice/v1/viewers/viewer3D.min.js"></script>
+
+    <!-- Developer JS -->
+    <script>
+        var viewerApp;
+        var options = {
+            env: 'AutodeskProduction',
+            getAccessToken: function(onGetAccessToken) {
+                //
+                // TODO: Replace static access token string below with call to fetch new token from your backend
+                // Both values are provided by Forge's Authentication (OAuth) API.
+                //
+                // Example Forge's Authentication (OAuth) API return value:
+                // {
+                //    "access_token": "<YOUR_APPLICATION_TOKEN>",
+                //    "token_type": "Bearer",
+                //    "expires_in": 86400
+                // }
+                //
+                var accessToken = 'yua1DXclGxwbdTlea8nMPFrdClg4';
+                var expireTimeSeconds = 60 * 30;
+                onGetAccessToken(accessToken, expireTimeSeconds);
+            }
+        };
+
+        var yourDocumentId = 'urn:dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6bG12dGVzdHN1aXRlL0hvdXNlLmR3Zng';
+
+        //Adds the inViewerSearch extension
+        var config = {
+            extensions: ["Autodesk.InViewerSearch"],
+            inViewerSearchConfig: {
+                uiEnabled: true,
+                clientId: "adsk.forge.default",
+                sessionId: "Session-ID-example-F969EB70-242F-11E6-BDF4-0800200C9A66",
+                loadedModelTab: {
+                    enabled: true,  //if false we hide the tab
+                    displayName: 'This View',
+                    pageSize: 50
+                },
+                relatedItemsTab:{
+                    enabled: true,  //if false we hide the tab
+                    displayName: 'This Item',
+                    pageSize: 20
+                }
+            }
+        }
+
+        Autodesk.Viewing.Initializer(options, function onInitialized() {
+            viewerApp = new Autodesk.Viewing.ViewingApplication('MyViewerDiv');
+            viewerApp.registerViewer(viewerApp.k3D, Autodesk.Viewing.Private.GuiViewer3D, config);
+            viewerApp.loadDocument(yourDocumentId, onDocumentLoadSuccess, onDocumentLoadFailure);
+        });
+
+        function onDocumentLoadSuccess(doc) {
+            console.log('onDocumentLoadSuccess()!');
+            console.log(doc);
+            // We could still make use of Document.getSubItemsWithProperties()
+            // However, when using a ViewingApplication, we have access to the bubble attribute,
+            // which references the root node of a graph that wraps each object from the Manifest JSON.
+            var viewables = viewerApp.bubble.search({'type':'geometry'});
+            if (viewables.length === 0) {
+                // Use ErrorHandler's method to display a dialog for the reported error.
+                var errorReportDiv = document.getElementById('MyViewerDiv');
+                var viewerErrorCode = Autodesk.Viewing.ErrorCodes.BAD_DATA_NO_VIEWABLE_CONTENT;
+                Autodesk.Viewing.Private.ErrorHandler.reportError(errorReportDiv, viewerErrorCode);
+                return;
+            }
+
+            // Choose any of the avialble viewables
+            viewerApp.selectItem(viewables[0].data);
+        }
+        function onDocumentLoadFailure(viewerErrorCode) {
+            console.warn('onDocumentLoadFailure()');
+            console.warn(viewerErrorCode);
+            // Use ErrorHandler's method to display a dialog for the reported error.
+            var errorReportDiv = document.getElementById('MyViewerDiv');
+            Autodesk.Viewing.Private.ErrorHandler.reportError(errorReportDiv, viewerErrorCode);
+        }
+
+    </script>
+</body>

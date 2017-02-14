@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: src/tools/HotkeyManager.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: src/tools/HotkeyManager.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>'use strict';
+
+AutodeskNamespace('Autodesk.Viewing.Private');
+
+/**
+ * @callback Autodesk.Viewing.HotkeyManager~onHotkeyPressCallback
+ * @param {number[]} keycodes - The key combination that triggered this callback
+ * @returns {boolean} - True if the press event was handled, false otherwise.
+ */
+
+/**
+ * @callback Autodesk.Viewing.HotkeyManager~onHotkeyReleaseCallback
+ * @param {number[]} keycodes - The key combination that triggered this callback
+ * @returns {boolean} - True if the release event was handled, false otherwise.
+ */
+
+/**
+ * @typedef {Object} Autodesk.Viewing.HotkeyManager~Hotkey
+ * @property {number[]} keycodes - The keycode combination (order doesn't matter).
+ * @property {Autodesk.Viewing.HotkeyManager~onHotkeyPressCallback} [onPress] - The callback used when the combination is engaged.
+ * @property {Autodesk.Viewing.HotkeyManager~onHotkeyReleaseCallback} [onRelease] - The callback used when the combination is disengaged.
+ */
+
+/**
+ * The HotkeyManager manages the hotkeys for the viewer.
+ * Access the members and methods via the singleton theHotkeyManager.
+ *
+ * @constructor
+ */
+Autodesk.Viewing.HotkeyManager = function () {
+    var stack = []; // The hotkey stack
+
+    var keys = []; // The keys that are currently held
+
+    // Pending items
+    var onPressQueue = [];
+    var onReleaseQueue = [];
+
+    /**
+     * Enum for keycodes
+     * @readonly
+     * @enum {number}
+     */
+    var KEYCODES = Autodesk.Viewing.KeyCode;
+
+    var _names = ["hotkeys"];
+
+    function getNames()
+    {
+        return _names;
+    }
+
+    function getName()
+    {
+        return _names[0];
+    }
+
+    // Apparently javascript sorts by string values by default so we need
+    // our own sort function.
+    function compare(a, b) {
+        return a - b;
+    }
+
+    /**
+     * Pushes new hotkeys onto the stack
+     *
+     * @param {String} id - The id for this hotkey set.
+     * @param {Autodesk.Viewing.HotkeyManager~Hotkey[]} hotkeys - The list of hotkeys.
+     * @param {Object} [options] - An optional dictionary of options for this hotkey set.
+     * @param {boolean} [options.tryUntilSuccess] - When true, the onPress callback will be called until it returns true
+     *                                              or the hotkey state changes. The onRelease callback will be called
+     *                                              until it returns true or until the combination is reengaged. Stops
+     *                                              propagation through the stack. Non-blocking.
+     * @returns {boolean} - True if the hotkeys were successfully pushed.
+     */
+    function pushHotkeys(id, hotkeys, options) {
+        var idAlreadyUsed = stack.some(function(element) {
+            return element.id === id;
+        });
+
+        if (idAlreadyUsed) {
+            return false;
+        }
+
+        for (var i = 0; i &lt; hotkeys.length; i++) {
+            stack.push({
+                id: id,
+                keys: hotkeys[i].keycodes.sort(compare).join(),
+                onPress: hotkeys[i].onPress,
+                onRelease: hotkeys[i].onRelease,
+                options: options || {}
+            });
+        }
+
+        return true;
+    }
+
+    /**
+     * Removes hotkeys associated with an ID from the stack.
+     *
+     * @param {String} id - The id associated with the hotkeys.
+     * @returns {boolean} - True if the hotkeys were successfully popped.
+     */
+    function popHotkeys(id) {
+        var found = false;
+        for (var i = stack.length - 1; i >= 0; i--) {
+            if (stack[i].id === id) {
+                stack.splice(i, 1);
+                found = true;
+            }
+        }
+
+        return found;
+    }
+
+    function cleanQueues() {
+        var index = keys.join();
+
+        var item;
+        var i;
+
+        for (i = 0; i &lt; onReleaseQueue.length;) {
+            item = onReleaseQueue[i];
+            if (item.keys === index) {
+                onReleaseQueue.splice(i, 1);
+            } else {
+                i++;
+            }
+        }
+
+        for (i = 0; i &lt; onPressQueue.length;) {
+            item = onPressQueue[i];
+            if (item.keys !== index) {
+                onPressQueue.splice(i, 1);
+            } else {
+                i++;
+            }
+        }
+    }
+
+    function handleKeyDown(event, keyCode) {
+        if (keys.indexOf(keyCode) !== -1) {
+            // Ignore duplicate key down events. (see ToolController.applyKeyMappings())
+            return;
+        }
+
+        var currentIndex = keys.join();
+        var currentKeys = keys.slice(0);
+
+        var i = 0;
+        while (i &lt; keys.length &amp;&amp; keys[i] &lt; keyCode) {
+            i++;
+        }
+        keys.splice(i, 0, keyCode);
+
+        var newIndex = keys.join();
+        var newKeys = keys.slice(0);
+
+        cleanQueues();
+
+        // Make sure onRelease is called before onPress
+        var releaseHandlers = [];
+        var pressHandlers = [];
+        var item;
+
+        for (i = stack.length - 1; i >= 0; i--) {
+            item = stack[i];
+            if (item.keys === currentIndex &amp;&amp; item.onRelease) {
+                releaseHandlers.unshift(item);
+            } else if (item.keys === newIndex &amp;&amp; item.onPress) {
+                pressHandlers.unshift(item);
+            }
+        }
+
+        for (i = releaseHandlers.length - 1; i >= 0; i--) {
+            item = releaseHandlers[i];
+            if (item.onRelease(currentKeys)) {
+                break;
+            } else if (item.options.tryUntilSuccess) {
+                onReleaseQueue.unshift(item);
+            }
+        }
+
+        for (i = pressHandlers.length - 1; i >= 0; i--) {
+            item = pressHandlers[i];
+            if (item.onPress(newKeys)) {
+                break;
+            } else if (item.options.tryUntilSuccess) {
+                onPressQueue.unshift(item);
+            }
+        }
+    }
+
+    function handleKeyUp(event, keyCode) {
+        var currentIndex = keys.join();
+        var currentKeys = keys.slice(0);
+
+        var i = keys.indexOf(keyCode);
+        if (i > -1) {
+            keys.splice(i, 1);
+        }
+
+        var newIndex = keys.join();
+        var newKeys = keys.slice(0);
+
+        cleanQueues();
+
+        // Make sure onRelease is called before onPress
+        var releaseHandlers = [];
+        var pressHandlers = [];
+        var item;
+
+        for (i = stack.length - 1; i >= 0; i--) {
+            item = stack[i];
+            if (item.keys === currentIndex &amp;&amp; item.onRelease) {
+                releaseHandlers.unshift(item);
+            } else if (item.keys === newIndex &amp;&amp; item.onPress) {
+                pressHandlers.unshift(item);
+            }
+        }
+
+        for (i = releaseHandlers.length - 1; i >= 0; i--) {
+            item = releaseHandlers[i];
+            if (item.onRelease(currentKeys)) {
+                break;
+            } else if (item.options.tryUntilSuccess) {
+                onReleaseQueue.unshift(item);
+            }
+        }
+
+        for (i = pressHandlers.length - 1; i >= 0; i--) {
+            item = pressHandlers[i];
+            if (item.onPress(newKeys)) {
+                break;
+            } else if (item.options.tryUntilSuccess) {
+                onPressQueue.unshift(item);
+            }
+        }
+    }
+
+    function update() {
+        var item;
+        var i;
+
+        for (i = 0; i &lt; onReleaseQueue.length;) {
+            item = onReleaseQueue[i];
+            if (item.onRelease(item.keys.split()) === true) {
+                onReleaseQueue.splice(i, 1);
+            } else {
+                i++;
+            }
+        }
+
+        for (i = 0; i &lt; onPressQueue.length;) {
+            item = onPressQueue[i];
+            if (item.onPress(item.keys.split()) === true) {
+                onPressQueue.splice(i, 1);
+            } else {
+                i++;
+            }
+        }
+
+        return false;
+    }
+
+    function handleBlur() {
+        // Release all keys.
+        for (var i = keys.length - 1; i >= 0; i--) {
+            handleKeyUp(null, keys[i]);
+        }
+    }
+
+    return {
+        pushHotkeys: pushHotkeys,
+        popHotkeys: popHotkeys,
+        handleKeyDown: handleKeyDown,
+        handleKeyUp: handleKeyUp,
+        handleBlur: handleBlur,
+        getName: getName,
+        getNames: getNames,
+        activate: function(){},
+        deactivate: function(){},
+        update: update,
+        KEYCODES: KEYCODES
+    };
+};
+
+Autodesk.Viewing.theHotkeyManager = new Autodesk.Viewing.HotkeyManager();
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Autodesk.Viewing.ApplicationScreenModeDelegate.html">ApplicationScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.Comments.CommentsExtension.html">CommentsExtension</a></li><li><a href="Autodesk.Viewing.Document.html">Document</a></li><li><a href="Autodesk.Viewing.Extension.html">Extension</a></li><li><a href="Autodesk.Viewing.Extensions.FirstPerson.FirstPersonExtension.html">FirstPersonExtension</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.CreateCircle.html">CreateCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.DeleteCircle.html">DeleteCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditAction.html">EditAction</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditMode.html">EditMode</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditModeCircle.html">EditModeCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.Markup.html">Markup</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupRectangle.html">MarkupRectangle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore.html">MarkupsCore</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.SetCircle.html">SetCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Measure.MeasureExtension.html">MeasureExtension</a></li><li><a href="Autodesk.Viewing.FileLoader.html">FileLoader</a></li><li><a href="Autodesk.Viewing.GuiViewer3D.html">GuiViewer3D</a></li><li><a href="Autodesk.Viewing.HotkeyManager.html">HotkeyManager</a></li><li><a href="Autodesk.Viewing.Initializer.html">Initializer</a></li><li><a href="Autodesk.Viewing.Model.html">Model</a></li><li><a href="Autodesk.Viewing.NullScreenModeDelegate.html">NullScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.Private.Preferences.html">Preferences</a></li><li><a href="Autodesk.Viewing.Private.ViewerState.html">ViewerState</a></li><li><a href="Autodesk.Viewing.ScreenModeDelegate.html">ScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.ToolController.html">ToolController</a></li><li><a href="Autodesk.Viewing.ToolInterface.html">ToolInterface</a></li><li><a href="Autodesk.Viewing.UI.Button.html">Button</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html">ComboButton</a></li><li><a href="Autodesk.Viewing.UI.Control.html">Control</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html">ControlGroup</a></li><li><a href="Autodesk.Viewing.UI.DockingPanel.html">DockingPanel</a></li><li><a href="Autodesk.Viewing.UI.ObjectContextMenu.html">ObjectContextMenu</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html">RadioButtonGroup</a></li><li><a href="Autodesk.Viewing.UI.SettingsPanel.html">SettingsPanel</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html">ToolBar</a></li><li><a href="Autodesk.Viewing.Viewer3D.html">Viewer3D</a></li><li><a href="Autodesk.Viewing.ViewingApplication.html">ViewingApplication</a></li><li><a href="Autodesk.Viewing.ViewingUtilities.html">ViewingUtilities</a></li></ul><h3>Events</h3><ul><li><a href="Autodesk.Viewing.UI.Button.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Button.html#event:STATE_CHANGED">STATE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Button.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:STATE_CHANGED">STATE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Control.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Control.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:ACTIVE_BUTTON_CHANGED">ACTIVE_BUTTON_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li></ul><h3>Tutorials</h3><ul><li>feature_markup</li></ul>
+</nav>
+
+<br clear="both">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.3.0-alpha11</a> on Fri Apr 15 2016 17:19:51 GMT+0800 (CST)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

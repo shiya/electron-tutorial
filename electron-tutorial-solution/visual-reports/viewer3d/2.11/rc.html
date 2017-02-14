@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>LMV Remote Control</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta charset="utf-8">
+
+    <link rel="stylesheet" href="rc.css" type="text/css">
+</head>
+
+<body oncontextmenu="return false;">
+    <div id="rcel"></div>
+</body>
+
+<script src="https://cdn.socket.io/socket.io-1.3.5.js"></script>
+<script src="rc.min.js"></script>
+
+<script>
+    var rc, client;
+    var avp = Autodesk.Viewing.Private;
+    var avpc = avp.Collaboration;
+
+    var svfURL = avp.getParameterByName("sessionId");
+    if (!svfURL)
+        console.error("Missing session ID");
+    else
+        console.log("Code: " + svfURL);
+
+    avp.env = avp.getParameterByName("env");
+    if (!avp.env)
+        console.error("Missing environment string");
+    else
+        console.log("Environment: " + avp.env);
+
+    var rcel = document.getElementById("rcel");
+    rc = new avpc.RemoteControl(rcel);
+    rc.connect(svfURL);
+
+    function launchIntoFullscreen() {
+        var element = document.documentElement;
+        if(element.requestFullscreen) {
+            element.requestFullscreen();
+        } else if(element.mozRequestFullScreen) {
+            element.mozRequestFullScreen();
+        } else if(element.webkitRequestFullscreen) {
+            element.webkitRequestFullscreen();
+        } else if(element.msRequestFullscreen) {
+            element.msRequestFullscreen();
+        }
+    }
+    window.addEventListener("mousedown", launchIntoFullscreen);
+</script>
+
+</html>

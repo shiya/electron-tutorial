@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: src/gui/controls/ComboButton.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: src/gui/controls/ComboButton.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>
+(function() {
+
+    "use strict";
+
+    var avu = Autodesk.Viewing.UI;
+
+    /**
+     * A comboButton with subMenu can be added to toolbars.
+     *
+     * @param {String} id - The id for this comboButton. Optional.
+     * @param {Object} [options] - An optional dictionary of options.
+     *
+     * @constructor
+     * @augments Autodesk.Viewing.UI.Button
+	 * @memberof Autodesk.Viewing.UI
+     */
+    function ComboButton(id, options) {
+        avu.Button.call(this, id, options);
+
+        this.arrowButton = new avu.Button(id + 'arrow');
+        this.arrowButton.addClass('adsk-button-arrow');
+        this.arrowButton.removeClass('adsk-button');
+
+        this.subMenu = new avu.RadioButtonGroup(id + 'SubMenu');
+        this.subMenu.addClass('toolbar-vertical-group');
+        this.subMenu.setVisible(false);
+
+        this.container.insertBefore(this.subMenu.container, this.container.firstChild);
+        this.container.insertBefore(this.arrowButton.container, this.container.firstChild);
+
+        var scope = this;
+        this.arrowButton.onClick = function(e) {
+            scope.subMenu.setVisible(!scope.subMenu.isVisible());
+        };
+
+        this.toggleFlyoutVisible = function() {
+            scope.subMenu.setVisible(!scope.subMenu.isVisible());
+        };
+
+        this.onClick = function(e) {
+            scope.subMenu.setVisible(!scope.subMenu.isVisible());
+        };
+
+        this.subMenuActiveButtonChangedHandler = function(event) {
+            if (event.isActiveButton) {
+                scope.setIcon(event.target.getActiveButton().iconClass);
+                scope.setToolTip(event.target.getActiveButton().getToolTip());
+                scope.setState(avu.Button.State.ACTIVE);
+                scope.onClick = event.button.onClick;
+            }
+            else {
+                scope.setState(avu.Button.State.INACTIVE);
+            }
+        };
+
+        this.subMenu.addEventListener(avu.RadioButtonGroup.Event.ACTIVE_BUTTON_CHANGED, this.subMenuActiveButtonChangedHandler);
+
+        // put up an invisible div to catch click-off close submenu
+        var clickOff = stringToDOM('&lt;div class="clickoff" style="position:fixed; top:0; left:0; width:100vw; height:100vh;">&lt;/div>');
+        this.subMenu.container.insertBefore(clickOff, this.subMenu.container.firstChild);
+        clickOff.addEventListener("click", function(e) {
+            scope.subMenu.setVisible(false);
+            e.stopPropagation();
+        });
+
+    };
+
+    ComboButton.prototype = Object.create(avu.Button.prototype);
+    ComboButton.prototype.constructor = ComboButton;
+
+
+    /**
+     * * Adds a new control to the combo fly-out
+     */
+    ComboButton.prototype.addControl = function(button) {
+    /*
+        if (this.subMenu.getNumberOfControls() === 0)
+            this.onClick = button.onClick;
+    */
+        this.subMenu.addControl(button);
+        button.addEventListener(avu.Button.Event.CLICK, this.toggleFlyoutVisible);
+
+    };
+
+
+    ComboButton.prototype.removeControl = function(button) {
+
+        button.removeEventListener(avu.Button.Event.CLICK, this.toggleFlyoutVisible);
+
+    };
+
+    ComboButton.prototype.setState = function(state) {
+
+        //Overloaded to inactivate children when the parent is inactivated
+        if (state === avu.Button.State.INACTIVE) {
+            var ab = this.subMenu.getActiveButton();
+            if (ab) {
+                ab.setState(avu.Button.State.INACTIVE);
+            }
+        }
+
+        //Also call super
+        avu.Button.prototype.setState.call(this, state);
+    };
+
+    /**
+     * Copies tooltip (if any), icon and click handler into an internal attribute.
+     * Can be restored through restoreDefault().
+     */
+    ComboButton.prototype.saveAsDefault = function() {
+        this.defaultState = {};
+        // Save tooltip
+        if (this._toolTipElement &amp;&amp; this._toolTipElement.getAttribute("tooltipText")) {
+            this.defaultState.tooltip = this._toolTipElement.getAttribute("tooltipText");
+        }
+        // Save icon
+        this.defaultState.icon = this.iconClass;
+        // Save click handler
+        this.defaultState.onClick = this.onClick;
+    };
+
+    /**
+     * Restores visual settings previously stored through saveAsDefault().
+     */
+    ComboButton.prototype.restoreDefault = function() {
+        if (!this.defaultState) return;
+        if (this.defaultState.tooltip) {
+            this.setToolTip(this.defaultState.tooltip);
+        }
+        if (this.defaultState.icon) {
+            this.setIcon(this.defaultState.icon);
+        }
+        this.onClick = this.defaultState.onClick; // No check on this one.
+        this.setState(avu.Button.State.INACTIVE);
+    };
+
+Autodesk.Viewing.UI.ComboButton = ComboButton;
+
+})();
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Autodesk.Viewing.ApplicationScreenModeDelegate.html">ApplicationScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.Comments.CommentsExtension.html">CommentsExtension</a></li><li><a href="Autodesk.Viewing.Document.html">Document</a></li><li><a href="Autodesk.Viewing.Extension.html">Extension</a></li><li><a href="Autodesk.Viewing.Extensions.FirstPerson.FirstPersonExtension.html">FirstPersonExtension</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.CreateCircle.html">CreateCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.DeleteCircle.html">DeleteCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditAction.html">EditAction</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditMode.html">EditMode</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditModeCircle.html">EditModeCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.Markup.html">Markup</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupRectangle.html">MarkupRectangle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore.html">MarkupsCore</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.SetCircle.html">SetCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Measure.MeasureExtension.html">MeasureExtension</a></li><li><a href="Autodesk.Viewing.FileLoader.html">FileLoader</a></li><li><a href="Autodesk.Viewing.GuiViewer3D.html">GuiViewer3D</a></li><li><a href="Autodesk.Viewing.HotkeyManager.html">HotkeyManager</a></li><li><a href="Autodesk.Viewing.Initializer.html">Initializer</a></li><li><a href="Autodesk.Viewing.Model.html">Model</a></li><li><a href="Autodesk.Viewing.NullScreenModeDelegate.html">NullScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.Private.Preferences.html">Preferences</a></li><li><a href="Autodesk.Viewing.Private.ViewerState.html">ViewerState</a></li><li><a href="Autodesk.Viewing.ScreenModeDelegate.html">ScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.ToolController.html">ToolController</a></li><li><a href="Autodesk.Viewing.ToolInterface.html">ToolInterface</a></li><li><a href="Autodesk.Viewing.UI.Button.html">Button</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html">ComboButton</a></li><li><a href="Autodesk.Viewing.UI.Control.html">Control</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html">ControlGroup</a></li><li><a href="Autodesk.Viewing.UI.DockingPanel.html">DockingPanel</a></li><li><a href="Autodesk.Viewing.UI.ObjectContextMenu.html">ObjectContextMenu</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html">RadioButtonGroup</a></li><li><a href="Autodesk.Viewing.UI.SettingsPanel.html">SettingsPanel</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html">ToolBar</a></li><li><a href="Autodesk.Viewing.Viewer3D.html">Viewer3D</a></li><li><a href="Autodesk.Viewing.ViewingApplication.html">ViewingApplication</a></li><li><a href="Autodesk.Viewing.ViewingUtilities.html">ViewingUtilities</a></li></ul><h3>Events</h3><ul><li><a href="Autodesk.Viewing.UI.Button.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Button.html#event:STATE_CHANGED">STATE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Button.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:STATE_CHANGED">STATE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Control.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Control.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:ACTIVE_BUTTON_CHANGED">ACTIVE_BUTTON_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li></ul><h3>Tutorials</h3><ul><li>feature_markup</li></ul>
+</nav>
+
+<br clear="both">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.3.0-alpha11</a> on Fri Apr 15 2016 17:19:51 GMT+0800 (CST)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

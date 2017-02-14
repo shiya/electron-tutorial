@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Extension API Demo : @buildnum@</title>
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1, user-scalable=no"/>
+    <meta charset="utf-8">
+
+    <link rel="stylesheet" href="style.css" type="text/css">
+
+    <script src="viewer3D.min.js"></script>
+    <script src="jquery-2.0.3.min.js"></script>
+
+    <script src="SampleExtension/SampleExtension.js"></script>
+    <script src="SampleExtension/SampleModelStructurePanel.js"></script>
+    <script src="SampleExtension/SampleLayersPanel.js"></script>
+    <script src="SampleExtension/SamplePropertyPanel.js"></script>
+    <script src="SampleExtension/SampleSettingsPanel.js"></script>
+    <link rel="stylesheet" href="SampleExtension/SampleExtension.css">
+    <link rel="stylesheet" href="SampleExtension/SampleModelStructurePanel.css">
+    <link rel="stylesheet" href="SampleExtension/SamplePropertyPanel.css">
+    <link rel="stylesheet" href="SampleExtension/SampleLayersPanel.css">
+
+    <script>
+        function initialize(options) {
+            var param = Autodesk.Viewing.Private.getParameterByName("viewer"),
+                urn, role;
+
+            if (param === '2d') {
+                urn = 'urn:dXJuOmFkc2suYTM2MGJldGFkZXY6ZnMuZmlsZTplbnRlcnByaXNlLmxtdnRlc3QuRFM1YTczMFFUYmYwMDIyZDA3NTFmZWZkN2NmOTM0OGU1M2MwP3ZlcnNpb249MQ==';
+                role = '2d';
+            } else {
+                urn = 'urn:dXJuOmFkc2subml0cm9nZW46ZnMuZmlsZTo1NGI2YmVhZDRiZGM0NDRkOWNmMzNlZTEzNTJmMzZlMA==';
+                role = '3d';
+            }
+
+            Autodesk.Viewing.Initializer(options, function () {
+                initializeViewer('viewer3d', urn, role);
+            });
+        }
+
+        function initializeViewer(containerId, documentId, role) {
+            // Create and initialize the given viewer in the given container, specifying the extensions
+            // to be loaded.
+            //
+            var viewerContainer = document.getElementById(containerId);
+            var viewer = new Autodesk.Viewing.Viewer3D(viewerContainer, {extensions: ['SampleExtension']});
+            viewer.start();
+
+            // Load the given document.  When loaded, find the requested geometry type
+            // and load its viewable into the viewer.
+            //
+            Autodesk.Viewing.Document.load(documentId,
+                    function (document) { // onLoadCallback
+                        var rootItem = document.getRootItem();
+                        var geometryItems = Autodesk.Viewing.Document.getSubItemsWithProperties(rootItem, {'type': 'geometry', 'role': role}, true);
+
+                        // Load the first geometry.
+                        //
+                        viewer.load(document.getViewablePath(geometryItems[0]));
+                    },
+                    function (msg) { // onErrorCallback
+                    }
+            );
+        }
+    </script>
+</head>
+
+<body onload="initialize();" style="margin: 0px;">
+<div id="viewer3d"
+     style="position:absolute; width:100%; height:100%;"></div>
+</body>
+
+</html>

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Viewing Application Demo : @buildnum@</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <meta charset="utf-8">
+
+    <link rel="stylesheet" href="style.css" type="text/css">
+
+    <script src="viewer3D.min.js"></script>
+    <script src="A360Tree.js"></script>
+    <script src="Autodesk360App.js"></script>
+
+    <script>
+        function initialize(containerId)
+        {
+            Autodesk.Viewing.Private.initializeEnvironmentVariable(
+               {env: 'Development'}  // Replace with your A360 env options.
+            );
+            Autodesk.Viewing.Private.initializeServiceEndPoints();
+
+            var documentId = Autodesk.Viewing.Private.getParameterByName("document");  // Replace with A360 document.
+            if(!documentId)
+                documentId = "urn:dXJuOmFkc2suczM6ZGVyaXZlZC5maWxlOnRyYW5zbGF0aW9uXzI1X3Rlc3RpbmcvRFdGL0Nhci5kd2Y=";
+
+            var itemId = Autodesk.Viewing.Private.getParameterByName("item");  // Replace with A360 initial item to load.
+
+            var objectId = Autodesk.Viewing.Private.getParameterByName("object");  // Replace with A360 object to isolate.
+
+            var authOptions = {accessToken : Autodesk.Viewing.Private.getParameterByName("accessToken")};  // Replace with A360 auth options.
+
+            Autodesk.Viewing.Private.initializeAuth(
+                function() { // This function will execute once the authorization is done.
+                    initializeViewingApplication(containerId, documentId, itemId, objectId);
+                },
+                authOptions
+            );
+        }
+
+        function initializeViewingApplication(containerId, documentId, itemId, objectId)
+        {
+            // Create the A360 viewing application, and register the 2d and 3d viewers.
+            // Specify the jQuery library namespace.
+            //
+            var appOptions = {};
+            appOptions.jQuery = $;              // Replace with A360 jQuery.
+            appOptions.kThumbnailHeight = 200;  // Replace with A360 thumbnail height.
+            appOptions.kThumbnailWidth = 200;   // Replace with A360 thumbnail width.
+
+            var config = {screenModeDelegate: screenModeDelegate};
+
+            var app = new Autodesk.A360ViewingApplication(containerId, appOptions);
+            app.registerViewer(app.k3D, Autodesk.Viewing.Private.GuiViewer3D, config);
+
+            // Load the document and item, and isolate the object.
+            //
+            app.loadDocumentWithItemAndObject(documentId, itemId, objectId);
+        }
+    </script>
+</head>
+
+<body onload="initialize('A360');" style="margin:0px; padding:0px">
+    <div style="position:absolute; background:lightgray; width:100%; height:100%">
+        <div id="A360" style="position:absolute; width:1200px; height:800px; left:50%; margin-left:-600px; top:50%; margin-top:-400px;"></div>
+    </div>
+</body>
+
+</html>

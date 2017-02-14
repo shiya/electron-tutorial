@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Viewing Application Demo : @buildnum@</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <meta charset="utf-8">
+
+    <link rel="stylesheet" href="leaflet.css" type="text/css">
+    <link rel="stylesheet" href="style.css" type="text/css">
+
+    <script src="leaflet.js"></script>
+    <script src="viewer3D.min.js"></script>
+    <script src="A360Browser.js"></script>
+    <script src="A360Tree.js"></script>
+    <script src="jquery-2.0.3.min.js"></script>
+
+    <script>
+        function initialize(containerId)
+        {
+            Autodesk.Viewing.Private.initializeEnvironmentVariable(
+               {env: 'Development'}  // Replace with your A360 env options.
+            );
+            Autodesk.Viewing.Private.initializeServiceEndPoints();
+
+            var documentId = Autodesk.Viewing.Private.getParameterByName("document");  // Replace with A360 document.
+            if(!documentId)
+                documentId = "urn:dXJuOmFkc2suczM6ZGVyaXZlZC5maWxlOnRyYW5zbGF0aW9uXzI1X3Rlc3RpbmcvRFdGL0Nhci5kd2Y=";
+
+            var itemId = Autodesk.Viewing.Private.getParameterByName("item");  // Replace with A360 initial item to load.
+
+            var objectId = Autodesk.Viewing.Private.getParameterByName("object");  // Replace with A360 object to isolate.
+
+            var authOptions = {accessToken : Autodesk.Viewing.Private.getParameterByName("accessToken")};  // Replace with A360 auth options.
+
+            Autodesk.Viewing.Private.initializeAuth(
+                function() { // This function will execute once the authorization is done.
+                    initializeViewingApplication(containerId, documentId, itemId, objectId);
+                },
+                authOptions
+            );
+        }
+
+        function initializeViewingApplication(containerId, documentId, itemId, objectId)
+        {
+            // Create the A360 viewing application, and register the 2d and 3d viewers.
+            // Specify the jQuery library namespace.
+            //
+            var appOptions = {};
+            appOptions.jQuery = $;  // Replace with A360 jQuery.
+
+            // Create a basic ViewingApplication with a 2D and 3D viewer.  This application has
+            // no UI for displaying the document/bubble contents.  We'll be building UI
+            // separately elsewhere.
+            //
+            var app = new Autodesk.Viewing.ViewingApplication(containerId, appOptions);
+            app.registerViewer(app.k3D, Autodesk.Viewing.Private.GuiViewer3D, null);
+            app.registerViewer(app.k2D, Autodesk.Viewing.Private.GuiViewer2D, null);
+
+            // Load the document and item, and isolate the object.
+            //
+            app.loadDocument(documentId, onDocumentLoad);
+
+            function onDocumentLoad(document)
+            {
+                // Create the tree.
+                //
+                var treeOptions = {};
+                treeOptions.jQuery = $;                   // Replace with A360 jQuery.
+                treeOptions.kRootName = 'Document Root';  // Replace with A360 root name for this document.
+                var explorerTree = new A360Tree('A360LeftPanel', app, document, treeOptions);
+
+                // Create the browser.
+                //
+                var browserOptions = {};
+                browserOptions.jQuery = $;              // Replace with A360 jQuery.
+                browserOptions.kThumbnailHeight = 200;  // Replace with A360 thumbnail height.
+                browserOptions.kThumbnailWidth = 200;   // Replace with A360 thumbnail width.
+                var browser = new A360Browser('A360RightPanel', app, document, browserOptions);
+
+                // Mark selected the item we're about to load.
+                //
+                explorerTree.setSelection([itemId]);
+                browser.setSelection([itemId]);
+
+                // Load the requested document, and item, and isolate the object.
+                //
+                loadDocumentWithItemAndObject(app, documentId, itemId, objectId);
+
+            }
+
+            // We're defining a method to do the initial load here.  Alternatively, we
+            // can extend ViewingApplication into A360ViewingApplication that adds
+            // this functionality.
+            //
+            function loadDocumentWithItemAndObject(app, documentId, itemId, objectId)
+            {
+                function loadItem(document) {
+                    // This demonstrates that you can either select the item directly (if you have it, it's
+                    // more efficient), or by its guid.  Note, a callback function can be provided, which
+                    // is executed once the item has been selected.  In this case, isolateObject() isolates
+                    // the object that's requested.
+                    //
+                    // Alternatively, one can add new methods to A360ViewingApplication to abstract all of this
+                    // functionality, or override its existing loadDocument and selectItem, selectItemById
+                    // methods to execute these extra operations.
+                    //
+                    var rootItem = document.getRootItem();
+                    if(itemId) {
+                        var geometryItems = Autodesk.Viewing.Document.getSubItemsWithProperties(document.getRootItem(), {'guid':itemId}, true);
+                        if(geometryItems.length > 0) {
+                            app.selectItem(geometryItems[0], isolateObject);
+                        }
+                    } else {
+                        var geometryItems = Autodesk.Viewing.Document.getSubItemsWithProperties(document.getRootItem(), {'type':'geometry'}, true);
+                        if(geometryItems.length > 0) {
+                            app.selectItemById(geometryItems[0].guid, isolateObject);
+                        }
+                    }
+                }
+
+                function isolateObject(viewer, item) {
+                    // Check if this is a 3d geometry item.
+                    //
+                    if (item.type === 'geometry' && item.role === '3d' && viewer) {
+                        var objectToLoad = parseInt(objectId);
+                        if (objectToLoad) {
+                            viewer.isolateById(objectToLoad);
+                        }
+                    }
+                }
+
+                app.loadDocument(documentId, loadItem);
+            };
+        }
+    </script>
+</head>
+
+<body onload="initialize('A360');" style="margin:0px; padding:0px">
+    <div style="position:absolute; background:lightgray; width:100%; height:100%">
+        <div id="A360LeftPanel" style="position:absolute; width:250px; height:800px; left:0px; margin-left:0px; top:50px; margin-top:0px; background:white; overflow-y:scroll"></div>
+        <div id="A360" style="position:absolute; width:800px; height:800px; left:250px; margin-left:0px; top:50px; margin-top:0px;"></div>
+        <div id="A360RightPanel" style="position:absolute; width:250px; height:800px; left:1050px; margin-left:0px; top:50px; margin-top:0px; background:white; overflow-y:scroll"></div>
+    </div>
+</body>
+
+</html>

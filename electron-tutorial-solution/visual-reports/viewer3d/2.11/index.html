@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Viewing Application Demo : @buildnum@</title>
+    <link rel="stylesheet" href="style.css" type="text/css">
+    <link rel="stylesheet" href="A360.css" type="text/css">
+    <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1, user-scalable=no" />
+    <meta charset="utf-8">
+
+    <script>
+        // Options object here is used for hosting application to programmatically pass configurations to viewer
+        // A sample options object likes this:
+        // {document: 'urn:foo', accessToken: 'bar', env: 'Development'}
+        // Without specifying options object, viewer will look for query parameters to get configuration objects
+        // like accessToken, documentId, etc.
+        // Without specifying both options object and query parameters, viewer uses the hardcoded configuration objects
+        // inside viewer, which is strictly for testing purpose.
+        function initialize(containerId, options) {
+            options = options || {};
+            Autodesk.Viewing.Initializer(options, function(){
+                initializeViewingApplication(containerId, getOptionsFromQueryString());
+            })
+        }
+
+        function getOptionsFromQueryString()
+        {
+            // Check if canvas and doc panel click behaviors have been provided.
+            //
+            var config3d = {};
+            var canvasConfig = Autodesk.Viewing.Private.getParameterByName("canvasConfig");
+            if (canvasConfig) {
+                config3d.canvasConfig = JSON.parse(canvasConfig);
+            }
+
+            var docStructureConfig = Autodesk.Viewing.Private.getParameterByName("docConfig");
+            if (docStructureConfig) {
+                config3d.docStructureConfig = JSON.parse(docStructureConfig);
+            }
+
+            var config2d = null;
+
+            var documentId = Autodesk.Viewing.Private.getParameterByName("document");
+            if(!documentId) {
+                documentId = Autodesk.Viewing.Private.getDemoDocumentURN();
+            }
+
+            var initialItemId = Autodesk.Viewing.Private.getParameterByName("item");
+
+            var isolateObjectId = Autodesk.Viewing.Private.getParameterByName("object");
+
+            return {
+                config3d : config3d,
+                config2d : config2d,
+                documentId: documentId,
+                initialItemId: initialItemId,
+                isolateObjectId: isolateObjectId
+            };
+        }
+
+        function initializeViewingApplication(containerId, initOptions)
+        {
+            // Create the A360 viewing application, and register the 2d and 3d viewers.
+            // Specify the jQuery library namespace.
+            //
+            var appOptions = {};
+            appOptions.kThumbnailHeight = 200;
+            appOptions.kThumbnailWidth = 200;
+
+            var app = new Autodesk.A360ViewingApplication(containerId, appOptions);
+            app.registerViewer(app.k3D, Autodesk.Viewing.Private.GuiViewer3D, initOptions.config3d);
+
+            // Load the document with a specific viewable to display and object to isolate.
+            // If you have the documentId, viewableId, and objectId from search results,
+            // you just need to call this method with that info.
+            //
+            app.loadDocumentWithItemAndObject(initOptions.documentId, initOptions.initialItemId, initOptions.isolateObjectId);
+        }
+    </script>
+</head>
+
+<body onload="initialize('A360');" style="margin:0">
+    <div id="A360" style="position:fixed; width:100%; height:100%;"></div>
+</body>
+
+<script src="three.min.js"></script>
+<script src="viewer3D.min.js"></script>
+<script src="Autodesk360App.js"></script>
+
+</html>

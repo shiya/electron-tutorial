@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Tutorial: Markup</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Tutorial: Markup</h1>
+
+    <section>
+
+<header>
+    
+
+    <h2>Markup</h2>
+</header>
+
+<article>
+    <h1>Basics</h1><h3>What is Markup?</h3><p>Markup is a Viewer extension that allows users to draw 2d shapes on top of the WebGL viewport. 
+The 2d shapes will scale as you zoom the camera in and out.
+Markups can be rendered over 2d and 3d models, though for 3d models only orthographic projection is supported.</p>
+<p>Markups can be created by end-users using mouse/touch input or by developers using the exposed APIs.</p>
+<p>All of the API can be accessed from <a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore.html">MarkupsCore</a> extension instance.</p>
+<h3>Drawing Tools</h3><p>The extension contains a set of built-in drawing tools:</p>
+<ul>
+<li>Arrow</li>
+<li>Text </li>
+<li>Rectangle</li>
+<li>Circle / Oval</li>
+<li>Cloud (rectangle with curvy edges)</li>
+</ul>
+<p>Developers can extend the drawing tools by implementing additional 
+<a href="Autodesk.Viewing.Extensions.Markups.Core.EditMode.html">EditModes</a>.
+See section <strong>Advance concepts</strong> below.</p>
+<h3>Markup features</h3><ul>
+<li>Draw over 2d and 3d models</li>
+<li>Create, Resize, Rotate and Delete a Markup</li>
+<li><a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore.html#undo">Undo</a> / <a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore.html#redo">Redo</a> </li>
+<li><a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore.html#copy">Copy</a> / <a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore.html#cut">Cut</a> / <a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore.html#paste">Paste</a></li>
+<li>Color, Transparency, Thickness and additional modifiers </li>
+<li>Generate SVG String from current Markups overlayed on LMV</li>
+<li>Restore Markups onto LMV overlay from SVG String</li>
+<li>Change Z-order of Markups</li>
+<li>Viewer zoom and pan camera operations  </li>
+</ul>
+<p>Remember to check <a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore.html">MarkupsCore API</a> for all details.</p>
+<h1>Getting started</h1><h2>Load extension</h2><p>Make sure the extension gets loaded to the Viewer:</p>
+<pre class="prettyprint source"><code>var config = {extensions: [&quot;Autodesk.Viewing.MarkupsCore&quot;]};
+var viewer = new Autodesk.Viewing.Viewer3D(container, config);
+viewer.loadModel(&quot;myModelPath&quot;);
+
+// After model finishes loading (async)
+var extension = viewer.getExtension(&quot;Autodesk.Viewing.MarkupsCore&quot;);</code></pre><h2>Enable User drawing</h2><p>Users are only able to draw markups while <strong>Edit Mode</strong> is active.</p>
+<pre class="prettyprint source"><code>// Enable user to start drawing markups over viewer
+extension.enterEditMode();
+
+// Remove markup drawing mode by calling leaveEditMode
+extension.leaveEditMode();</code></pre><h2>Change drawing tool</h2><p>Drawing tools are controlled through <strong>Edit Modes</strong>. 
+Each drawing tool is implemented as a separate Edit Mode. </p>
+<pre class="prettyprint source"><code>// Set Arrow drawing tool by instantiating it's EditMode
+var modeArrow = new Autodesk.Markups.Core.EditModeArrow(extension);
+extension.changeEditMode(modeArrow);
+// From now on, while in EditMode, the user will be drawing arrows.
+//...
+// Now let's switch into Text drawing tool:
+var modeText = new Autodesk.Markups.Core.EditModeText(extension);
+extension.changeEditMode(modeText);
+// From now on, while in EditMode, the user will be drawing text boxes.</code></pre><h2>Customize a drawing tool</h2><p>When drawing a markup, there are several visual attributes that can be customized, such as 
+stroke width, stroke color, fill color and transparency to name a few.</p>
+<p>Developers are welcome to add additional customization values as long as they are supported
+by the Svg data format.</p>
+<pre class="prettyprint source"><code>// Create a style object using an Utility function.
+// Using this function is not a requirement, developers can create compatible styleObjects.
+var styleAttributes = ['stroke-width', 'stroke-color', 'stroke-opacity'];
+var nsu = Autodesk.Viewing.Extensions.Markups.Core.Utils;
+var styleObject = nsu.createStyle(styleAttributes, extension.viewer);
+
+// At this point, feel free to edit the values within styleObject...
+
+// By calling setStyle() we will be applying the characteristics to both the Edit Mode (so that 
+// new markups will have the characteristics) and also to the currently selected markup.
+extension.setStyle(styleObject);</code></pre><h2>Saving and loading markups</h2><p>Markups extension does not provide any storage capability. However, it does provide functionality 
+to generate an Svg string that can be passed into the storage solution.</p>
+<pre class="prettyprint source"><code>// After user has created markups, get the data for further storage.
+var markupsStringData = extension.generateData();
+// Erase all markups onscreen, then load markups back onto the view
+extension.clear();
+extension.enterViewMode(); // Very important!!
+extension.loadMarkups(markupsStringData, &quot;Layer_1&quot;);</code></pre><p>Notice the usage of &quot;Layer_1&quot;. This indicates that multiple saved markups can be loaded and overlaid 
+one another. With this, developers can create functionality to toggle their visibility.</p>
+<pre class="prettyprint source"><code>extension.loadMarkups(myMarkupString2, &quot;Layer_2&quot;);
+extension.loadMarkups(myMarkupString3, &quot;Layer_3&quot;);
+// Hide Layer_2
+extension.hideMarkups(&quot;Layer_2&quot;);
+// Show Layer_2 again
+extension.showMarkups(&quot;Layer_2&quot;);</code></pre><p><a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore.html#hideMarkups">hideMarkups()</a>
+and <a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore.html#showMarkups">showMarkups()</a>
+only change the visibility of the markup svg. 
+To actually unload the svg and recover some memory, look into 
+<a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore.html#unloadMarkups">unloadMarkups()</a>.</p>
+<h2>The Undo/Redo stack</h2><p>All of the actions a user does while authoring markups are added to an action stack.
+The action stack allows developers to implement UI to access 
+<a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore.html#undo">undo</a> 
+/ <a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore.html#redo">redo</a> functionality.</p>
+<h1>Advance concepts</h1><h2>Create a new drawing tool (a new EditMode)</h2><p>Developers are encourage to implement drawing tools not included in the Markups extension.
+Every drawing tool must have a set of classes to handle them. Let's say for example we are implementing a
+Panda tool. For a Panda tool we would need to add the following files/classes:</p>
+<ul>
+<li>MarkupPanda.js</li>
+<li>EditModePanda.js</li>
+<li>CreatePanda.js (Action)</li>
+<li>DeletePanda.js (Action)</li>
+<li>SetPanda.js (Action)</li>
+</ul>
+<p><strong>MarkupPanda.js</strong> would contain the class MarkupPanda which extends 
+<a href="Autodesk.Viewing.Extensions.Markups.Core.Markup.html">Markup</a> and provides the code to render the
+markups as an Svg and in a <a href="http://www.w3.org/TR/2dcontext/">canvas 2d context</a>.</p>
+<p><strong>EditModePanda.js</strong> would contain the class EditModePanda which extends 
+<a href="Autodesk.Viewing.Extensions.Markups.Core.EditMode.html">EditMode</a> and provides the code
+to handle user-input for creating a MarkupPanda onscreen.</p>
+<p><strong>CreatePanda</strong>, <strong>DeletePanda</strong> and <strong>SetPanda</strong> are classes that extend 
+<a href="Autodesk.Viewing.Extensions.Markups.Core.EditAction.html">EditAction</a> and provide mechanisms to
+author markups of type MarkupPanda. 
+By encapsulating these operations in actions, the Markups extension is able to make sure
+that the undo and redo system handles them gracefully.</p>
+<h1>What's next?</h1><p>Don't forget to check out <a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore.html">MarkupsCore API</a> for additional information.</p>
+</article>
+
+</section>
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Autodesk.Viewing.ApplicationScreenModeDelegate.html">ApplicationScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.Comments.CommentsExtension.html">CommentsExtension</a></li><li><a href="Autodesk.Viewing.Document.html">Document</a></li><li><a href="Autodesk.Viewing.Extension.html">Extension</a></li><li><a href="Autodesk.Viewing.Extensions.FirstPerson.FirstPersonExtension.html">FirstPersonExtension</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.CreateCircle.html">CreateCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.DeleteCircle.html">DeleteCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditAction.html">EditAction</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditMode.html">EditMode</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditModeCircle.html">EditModeCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.Markup.html">Markup</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupRectangle.html">MarkupRectangle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore.html">MarkupsCore</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.SetCircle.html">SetCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Measure.MeasureExtension.html">MeasureExtension</a></li><li><a href="Autodesk.Viewing.FileLoader.html">FileLoader</a></li><li><a href="Autodesk.Viewing.GuiViewer3D.html">GuiViewer3D</a></li><li><a href="Autodesk.Viewing.HotkeyManager.html">HotkeyManager</a></li><li><a href="Autodesk.Viewing.Initializer.html">Initializer</a></li><li><a href="Autodesk.Viewing.Model.html">Model</a></li><li><a href="Autodesk.Viewing.NullScreenModeDelegate.html">NullScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.Private.Preferences.html">Preferences</a></li><li><a href="Autodesk.Viewing.Private.ViewerState.html">ViewerState</a></li><li><a href="Autodesk.Viewing.ScreenModeDelegate.html">ScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.ToolController.html">ToolController</a></li><li><a href="Autodesk.Viewing.ToolInterface.html">ToolInterface</a></li><li><a href="Autodesk.Viewing.UI.Button.html">Button</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html">ComboButton</a></li><li><a href="Autodesk.Viewing.UI.Control.html">Control</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html">ControlGroup</a></li><li><a href="Autodesk.Viewing.UI.DockingPanel.html">DockingPanel</a></li><li><a href="Autodesk.Viewing.UI.ObjectContextMenu.html">ObjectContextMenu</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html">RadioButtonGroup</a></li><li><a href="Autodesk.Viewing.UI.SettingsPanel.html">SettingsPanel</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html">ToolBar</a></li><li><a href="Autodesk.Viewing.Viewer3D.html">Viewer3D</a></li><li><a href="Autodesk.Viewing.ViewingApplication.html">ViewingApplication</a></li><li><a href="Autodesk.Viewing.ViewingUtilities.html">ViewingUtilities</a></li></ul><h3>Events</h3><ul><li><a href="Autodesk.Viewing.UI.Button.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Button.html#event:STATE_CHANGED">STATE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Button.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:STATE_CHANGED">STATE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Control.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Control.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:ACTIVE_BUTTON_CHANGED">ACTIVE_BUTTON_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li></ul><h3>Tutorials</h3><ul><li>feature_markup</li></ul>
+</nav>
+
+<br clear="both">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.3.0-alpha11</a> on Fri Apr 15 2016 17:19:52 GMT+0800 (CST)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

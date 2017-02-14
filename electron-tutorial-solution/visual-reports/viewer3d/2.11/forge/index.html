@@ -1,0 +1,70 @@
+// Step-by-Step Tutorial to Instantiate a Basic Viewer
+
+
+<head>
+    <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1, user-scalable=no" />
+
+    <!-- The Viewer CSS -->
+    <link rel="stylesheet" href="https://developer.api.autodesk.com/viewingservice/v1/viewers/style.min.css" type="text/css">
+    <link rel="stylesheet" href="https://developer.api.autodesk.com/viewingservice/v1/viewers/A360.css" type="text/css">
+
+    <!-- Developer CSS -->
+    <style>
+        #MyViewerDiv {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            background-color: #F0F8FF;
+            border: solid 1px #000000;
+        }
+        .my-view-front-button {
+            background: red;
+        }
+        .my-view-back-button {
+            background: blue;
+        }
+    </style>
+</head>
+<body>
+<div id="MyViewerDiv"></div>
+
+//HTML Buttons Added
+<button id="MyAwesomeLockButton">Lock it!</button>
+<button id="MyAwesomeUnlockButton">Unlock it!</button>
+
+<!-- The Viewer JS -->
+<script src="https://developer.api.autodesk.com/viewingservice/v1/viewers/three.min.js"></script>
+<script src="https://developer.api.autodesk.com/viewingservice/v1/viewers/viewer3D.min.js"></script>
+<script src="https://developer.api.autodesk.com/viewingservice/v1/viewers/Autodesk360App.js"></script>
+<script src="../my-awesome-extension.js"></script>
+<script src="../toolbar-extension.js"></script>
+
+<!-- Developer JS -->
+<script>
+    var viewerApp;
+    var options = {
+        env: 'AutodeskProduction',
+        getAccessToken: function(onGetAccessToken) {
+            // TODO: Replace static access token string with call to fetch new token
+            /*  var accessToken = '<YOUR_APPLICATION_TOKEN>'; */
+            var accessToken=  'VOZwLuZPENYbmYmyhOVFLam6ejwx';
+            var expireTimeSeconds = 60 * 30;
+            onGetAccessToken(accessToken, expireTimeSeconds);
+        }
+
+    };
+    var documentId = 'urn:dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6bG12dGVzdHN1aXRlL0hvdXNlLmR3Zng';
+    Autodesk.Viewing.Initializer(options, function onInitialized(){
+        viewerApp = new Autodesk.A360ViewingApplication('MyViewerDiv');
+        viewerApp.registerViewer(viewerApp.k3D, Autodesk.Viewing.Private.GuiViewer3D);
+        viewerApp.loadDocumentWithItemAndObject(documentId);
+
+        //Instruct the Autodesk360App to load our extension:
+        var config3d = {
+            extensions: ['MyAwesomeExtension'],
+            extensions:['ToolbarExtension']
+        };
+        viewerApp.registerViewer(viewerApp.k3D, Autodesk.Viewing.Private.GuiViewer3D, config3d);
+    });
+</script>
+</body>

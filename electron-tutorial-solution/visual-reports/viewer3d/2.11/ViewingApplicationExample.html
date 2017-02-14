@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Viewing Application API Demo : @buildnum@</title>
+    <meta name="viewport" content="width=device-width, minimum-scale=1.0, maximum-scale=1.0" />
+    <meta charset="utf-8">
+
+    <link rel="stylesheet" href="style.css" type="text/css">
+
+    <script src="viewer3D.min.js"></script>
+    <script src="jquery-2.0.3.min.js"></script>
+
+    <style>
+        .slide_display {
+            position:relative;
+            float:left;
+            height:20px;
+            width:100%;
+            z-index: 2;
+            background: rgba(119, 119, 119, 0.60);
+            font-family: Arial, Verdana, Helvetica, sans-serif;
+            font-size: 13px;
+            color: white;
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .slide_control {
+            position:relative;
+            width:20px;
+            height:100%;
+            z-index: 1;
+            background: rgba(119, 119, 119, 0);
+        }
+
+        .slide_control.previous {
+            float:left;
+        }
+
+        .slide_control.next {
+            float:right;
+        }
+
+        .slide_control:hover {
+            background: rgba(119, 119, 119, 0.71);
+            -webkit-transition: all 0.2s ease;
+            -moz-transition: all 0.2s ease;
+            -ms-transition: all 0.2s ease;
+            -o-transition: all 0.2s ease;
+            transition: all 0.2s ease;
+        }
+
+    </style>
+    <script>
+        var applications = {};
+        function initialize() {
+            Autodesk.Viewing.Private.initializeEnvironmentVariable();
+            Autodesk.Viewing.Private.initializeServiceEndPoints();
+            auth = Autodesk.Viewing.Private.initializeAuth();
+
+            $('#urn').keydown(function(e)
+            {
+                if(e.keyCode === 13 && this.value !== '')
+                {
+                    loadDocument('slide_show_app', this.value);
+                }
+            });
+        }
+
+        function loadDocument(containerId, documentId) {
+            if(!applications.hasOwnProperty(containerId))
+            {
+                applications[containerId] = new SlideShowApp(containerId, {});
+            }
+
+            applications[containerId].loadDocument(documentId);
+        }
+
+        SlideShowApp = function(containerId, options)
+        {
+            Autodesk.Viewing.ViewingApplication.call(this, containerId, options);
+            this.registerViewer(this.k2D, Autodesk.Viewing.Private.GuiViewer2D, {});
+            this.registerViewer(this.k3D, Autodesk.Viewing.Private.GuiViewer3D, {});
+
+            var self = this;
+            $('<div class="slide_display"></div>').appendTo('#'+containerId);
+            $('<div class="slide_control previous"></div>').appendTo('#'+containerId).click(function(e){
+                self.previous();
+            });
+
+            var viewerContainerId = this.appContainerId + '-viewer';
+            $('<div style="position:absolute; width:100%; height:100%; z-index: 0;" id="' + viewerContainerId + '"></div>').appendTo('#'+containerId);
+            this.viewerContainer = document.getElementById(viewerContainerId);
+
+            $('<div class="slide_control next"></div>').appendTo('#'+containerId).click(function(e){
+                self.next();
+            });
+        }
+        SlideShowApp.prototype = Object.create(Autodesk.Viewing.ViewingApplication.prototype);
+
+        SlideShowApp.prototype.getViewerContainer = function()
+        {
+            return this.viewerContainer;
+        };
+
+        SlideShowApp.prototype.onDocumentLoaded = function(document)
+        {
+            // Find the geometry items with thumbnails - we'll use these as our slides.
+            //
+            this.slideItems = Autodesk.Viewing.Document.getSubItemsWithProperties(document.getRootItem(), {'type':'geometry', 'hasThumbnail':'true'}, true);
+            if(this.slideItems.length > 0)
+            {
+                this.selectItem(this.slideItems[0]);
+            }
+        }
+
+        SlideShowApp.prototype.next = function()
+        {
+            var nextSlide = (this.currentSlide + 1) % this.slideItems.length;
+            this.selectItem(this.slideItems[nextSlide]);
+        }
+
+        SlideShowApp.prototype.previous = function()
+        {
+            var previousSlide = (this.currentSlide > 0) ? (this.currentSlide - 1) : (this.slideItems.length - 1);
+            this.selectItem(this.slideItems[previousSlide]);
+        }
+
+        SlideShowApp.prototype.onItemSelected = function(item)
+        {
+            console.log('Selected: ' + item.guid);
+            this.currentSlide = this.slideItems.indexOf(item);
+            var slideNumber = (this.currentSlide + 1);
+            $('#'+this.appContainerId + '>div.slide_display').text('Slide ' + slideNumber + ' of ' + this.slideItems.length + ': ' + item.name);
+        }
+
+    </script>
+</head>
+
+<body onload="initialize();">
+    <div id="slide_show_app" style="position:absolute; left:0px; width:1200px; height:600px; border-color: black; overflow-y: scroll; overflow-x:scroll; border-style:solid; border-width: 1px; background: lightgray"></div>
+    <div><input id="urn" type="text" style="width:1200px; top:600px; left:0px; position:relative;" placeholder="Document URN"></input></div>
+</body>
+
+</html>

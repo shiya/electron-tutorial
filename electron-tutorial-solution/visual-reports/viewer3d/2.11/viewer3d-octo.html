@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Large Model Viewer OCTO Demo</title>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.1/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.1/css/bootstrap-theme.min.css">
+
+    <style>
+        body {
+            padding-top: 70px;
+            padding-bottom: 30px;
+        }
+
+        .theme-dropdown .dropdown-menu {
+            position: static;
+            display: block;
+            margin-bottom: 20px;
+        }
+
+        .theme-showcase > p > .btn {
+            margin: 5px 0;
+        }
+
+        .theme-showcase .navbar .container {
+            width: auto;
+        }
+
+        .theme-remoteModelForm {
+            border-style: solid;
+            border-radius: 4px 4px 0 0;
+            border-width: 1px;
+            border-color: #ddd;
+            background-color: #fff;
+            padding: 5px 15px 15px;
+        }
+    </style>
+</head>
+
+<body role="document">
+
+    <!-- Fixed navbar -->
+    <nav class="navbar navbar-inverse navbar-fixed-top" role="navigation">
+        <div class="container">
+            <div class="navbar-header">
+                <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar" aria-expanded="false" aria-controls="navbar">
+                    <span class="sr-only">Toggle navigation</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="#">OCTO LMV</a>
+            </div>
+            <div id="navbar" class="navbar-collapse collapse">
+                <ul class="nav navbar-nav">
+                    <li class="active"><a href="#">Home</a></li>
+                    <li><a href="#" data-toggle="modal" data-target="#myAboutModal">About</a></li>
+                    <!-- li><a href="#contact">Contact</a></li -->
+                </ul>
+            </div><!--/.nav-collapse -->
+        </div>
+    </nav>
+
+    <div class="container theme-showcase" role="main">
+
+        <div class="jumbotron">
+            <h1>OCTO Large Model Viewer Demo</h1>
+            <p>This is a modified version of the Large Model Viewer.  It contains various additions (experiments) such as support for collaboration (video/audio/chat),
+                First Person View Tool for better movement, Virtual Reality (VR) modes for Oculus or Google Goggle style devices, and Leap Motion Controller use.</p>
+            <p><a href="viewer3d-octo2.html?file=tests/testPage/testdata/PointDumeSchool/output/Resource/3D_View/_3D_/_3D_.svf" class="btn btn-primary btn-lg" role="button">View Sample Now &raquo;</a></p>
+        </div>
+
+        <div class="alert alert-info" role="alert">
+            <strong>Requirements!</strong> Mac/Win or Android requires a recent version of Chrome or Firefox.  For iOS you must have v8.1 for the WebGL support.
+            VR support requires Google Chromium (<a href="https://drive.google.com/folderview?id=0BzudLt22BqGRbW9WTHMtOWMzNjQ&usp=sharing#list">builds</a> or
+            see <a href="http://blog.tojicode.com/2014/07/bringing-vr-to-chrome.html">Toji Code</a>).
+            Collaboration (WebRTC) requires a web camera and microphone (errors if you don't have these devices).
+        </div>
+
+        <h4>Sample Models</h4>
+
+        <div class="row">
+            <div class="col-sm-4">
+                <ul class="list-group">
+                    <li class="list-group-item">
+                        <a href="viewer3d-octo2.html?file=tests/testPage/testdata/PointDumeSchool/output/Resource/3D_View/_3D_/_3D_.svf">Point Dume School</a>
+                    </li>
+                    <li class="list-group-item">
+                        <a href="viewer3d-octo2.html?file=tests/testPage/testdata/11JaySt-Apt3.dwf/com.autodesk.dwf.eModel_7FE0876A-D2EF-4A5F-8078-EEFA7D66E3B9/0.svf">11 Jay St. Apt 3 - All</a>
+                    </li>
+                    <li class="list-group-item">
+                        <a href="viewer3d-octo2.html?file=tests/testPage/testdata/house/Residential%20Exterior.obj.svf">House - Residential Exterior</a>
+                    </li>
+
+<!-- ALL SAMPLES
+<li><a href="viewer3d-octo2.html?file=tests/testPage/testdata/11JaySt-Apt3.dwf/com.autodesk.dwf.eModel_7FE0876A-D2EF-4A5F-8078-EEFA7D66E3B9/0.svf">11 Jay St. Apt 3 - All</a>&nbsp;
+(<a href="viewer3d-octo2.html?file=tests/testPage/testdata/11JaySt-Apt3.dwf/com.autodesk.dwf.eModel_7FE0876A-D2EF-4A5F-8078-EEFA7D66E3B9/0.svf&vr=1">VR</a>)</li>
+<li><a href="viewer3d-octo2.html?file=tests/testPage/testdata/11JaySt-Apt3.dwf/com.autodesk.dwf.eModel_5C395720-2D8A-4380-8138-B9520861BCA0/1.svf">11 Jay St. Apt 3 - 1</a>&nbsp;
+(<a href="viewer3d-octo2.html?file=tests/testPage/testdata/11JaySt-Apt3.dwf/com.autodesk.dwf.eModel_5C395720-2D8A-4380-8138-B9520861BCA0/1.svf&vr=1">VR</a>)</li>
+<li><a href="viewer3d-octo2.html?file=tests/testPage/testdata/11JaySt-Apt3.dwf/com.autodesk.dwf.eModel_84DD535F-5B28-4D67-82F4-691B40D1EFD7/2.svf">11 Jay St. Apt 3 - 2</a>&nbsp;
+(<a href="viewer3d-octo2.html?file=tests/testPage/testdata/11JaySt-Apt3.dwf/com.autodesk.dwf.eModel_84DD535F-5B28-4D67-82F4-691B40D1EFD7/2.svf&vr=1">VR</a>)</li>
+<li><a href="viewer3d-octo2.html?file=tests/testPage/testdata/11JaySt-Apt3.dwf/com.autodesk.dwf.eModel_EB339E10-E04F-49AA-996C-328FA64000B4/3.svf">11 Jay St. Apt 3 - 3</a>&nbsp;
+(<a href="viewer3d-octo2.html?file=tests/testPage/testdata/11JaySt-Apt3.dwf/com.autodesk.dwf.eModel_EB339E10-E04F-49AA-996C-328FA64000B4/3.svf&vr=1">VR</a>)</li>
+<li><a href="viewer3d-octo2.html?file=tests/testPage/testdata/Autodesk%20Test.dwfx/com.autodesk.dwf.eModel_32F8DE03-30C5-40C3-A46D-138AE18270D5/0.svf">Autodesk Test (tower)</a>&nbsp;
+(<a href="viewer3d-octo2.html?file=tests/testPage/testdata/Autodesk%20Test.dwfx/com.autodesk.dwf.eModel_32F8DE03-30C5-40C3-A46D-138AE18270D5/0.svf&vr=1">VR</a>)</li>
+<li><a href="viewer3d-octo2.html?file=tests/testPage/testdata/Autodesk_Hospital_Metric.dwf/com.autodesk.dwf.eModel_4EB242A7-8D76-4D1D-9F65-69BF81AA454F/0.svf">Autodesk Hospital Metric</a>&nbsp;
+(<a href="viewer3d-octo2.html?file=tests/testPage/testdata/Autodesk_Hospital_Metric.dwf/com.autodesk.dwf.eModel_4EB242A7-8D76-4D1D-9F65-69BF81AA454F/0.svf&vr=1">VR</a>)</li>
+<li><a href="viewer3d-octo2.html?file=tests/testPage/testdata/engine/engine.3ds.svf">Engine</a>&nbsp;
+(<a href="viewer3d-octo2.html?file=tests/testPage/testdata/engine/engine.3ds.svf&vr=1">VR</a>)</li>
+<li><a href="viewer3d-octo2.html?file=tests/testPage/testdata/house/Residential%20Exterior.obj.svf">House - Residential Exterior</a>&nbsp;
+(<a href="viewer3d-octo2.html?file=tests/testPage/testdata/house/Residential%20Exterior.obj.svf&vr=1">VR</a>)</li>
+<li><a href="viewer3d-octo2.html?file=tests/testPage/testdata/MM3500Assembly.dwf/com.autodesk.dwf.eModel_00D4CBA8-1FDC-4862-83B1-D5E5ADDA89C7/0.svf">MM3500 Assembly</a>&nbsp;
+(<a href="viewer3d-octo2.html?file=tests/testPage/testdata/MM3500Assembly.dwf/com.autodesk.dwf.eModel_00D4CBA8-1FDC-4862-83B1-D5E5ADDA89C7/0.svf&vr=1">VR</a>)</li>
+<li><a href="viewer3d-octo2.html?file=tests/testPage/testdata/NShaver.dwf/com.autodesk.dwf.eModel_1C1B760B-4527-439C-80C0-1EDF63800BD0/0.svf">NShaver</a>&nbsp;
+(<a href="viewer3d-octo2.html?file=tests/testPage/testdata/NShaver.dwf/com.autodesk.dwf.eModel_1C1B760B-4527-439C-80C0-1EDF63800BD0/0.svf&vr=1">VR</a>)</li>
+<li><a href="viewer3d-octo2.html?file=tests/testPage/testdata/RAON%20Product.dwfx/com.autodesk.dwf.eModel_8C82CC34-C8C6-44E3-9695-BB42643EC2B8/0.svf">RAON Product</a>&nbsp;
+(<a href="viewer3d-octo2.html?file=tests/testPage/testdata/RAON%20Product.dwfx/com.autodesk.dwf.eModel_8C82CC34-C8C6-44E3-9695-BB42643EC2B8/0.svf&vr=1">VR</a>)</li>
+<li><a href="viewer3d-octo2.html?file=tests/testPage/testdata/rover/rover.obj.svf">Rover</a>&nbsp;
+(<a href="viewer3d-octo2.html?file=tests/testPage/testdata/rover/rover.obj.svf&vr=1">VR</a>)</li>
+<li><a href="viewer3d-octo2.html?file=tests/testPage/testdata/sponza/sponza.obj.svf">Sponza</a>&nbsp;
+(<a href="viewer3d-octo2.html?file=tests/testPage/testdata/sponza/sponza.obj.svf&vr=1">VR</a>)</li>
+<li><a href="viewer3d-octo2.html?file=tests/testPage/testdata/Suspension.dwf/com.autodesk.dwf.eModel_KnsQ2UIYKE2BZvOP%2bftBPw/1.svf">Suspension - 1</a>&nbsp;
+(<a href="viewer3d-octo2.html?file=tests/testPage/testdata/Suspension.dwf/com.autodesk.dwf.eModel_KnsQ2UIYKE2BZvOP%2bftBPw/1.svf&vr=1">VR</a>)</li>
+<li><a href="viewer3d-octo2.html?file=tests/testPage/testdata/Suspension.dwf/com.autodesk.dwf.eModel_xvEITBCmfEWW7wXS%2bgzOlg/5.svf">Suspension - 5</a>&nbsp;
+(<a href="viewer3d-octo2.html?file=tests/testPage/testdata/Suspension.dwf/com.autodesk.dwf.eModel_xvEITBCmfEWW7wXS%2bgzOlg/5.svf&vr=1">VR</a>)</li>
+<li><a href="viewer3d-octo2.html?file=tests/testPage/testdata/turbofan/turbofan.3ds.svf">Turbofan</a>&nbsp;
+(<a href="viewer3d-octo2.html?file=tests/testPage/testdata/turbofan/turbofan.3ds.svf&vr=1">VR</a>)</li>
+-->
+
+                </ul>
+            </div><!-- /.col-sm-4 -->
+        </div>
+
+        <h4>Load Remote Model</h4>
+
+        <form role="form" name="ModelForm" class="theme-remoteModelForm" id="remoteModelForm" onSubmit="return handleModelFormSubmit()">
+            <div class="form-group">
+                <label for="URN">URN</label>
+                <input type="text" class="form-control" id="URN" placeholder="Enter the model's URN" size="80">
+            </div>
+            <div class="form-group">
+                <label for="ACCESSTOKEN">Access Token</label>
+                <input type="text" class="form-control" id="ACCESSTOKEN" placeholder="Access Token" size="30">
+            </div>
+            <div class="form-group">
+                <label for="ENV">Environment</label>
+                <input type="text" id="ENV" value="Staging">
+                <p class="help-block">Staging or Production</p>
+            </div>
+            <button type="submit" class="btn btn-default">Submit</button>
+        </form>
+
+        <h3>Collaboration</h3>
+        <ul>
+            <li>Select the WebRTC button <img src="icons/webrtc_icon.png"> from the toolbar</li>
+            <li>Select the Create Meeting menuitem from the WebRTC menu</li>
+            <li>When prompted, enter a meeting name or just use the one created for you, then click OK</li>
+            <li>Your browser will prompt you to allow/disallow sharing of your video/audio.  Click allow.</li>
+            <li>The collaboration panel should now appear along with your video pane.  This has controls for:</li>
+            <ul>
+                <li><img src="icons/video_play.png"> Enable/disable the video</li>
+                <li><img src="icons/audio_play.png"> Enable/disable the audio</li>
+                <li><img src="icons/camera_control.png"> Lock/Unlock remote camera control</li>
+                <li><img src="icons/first_person.png"> <i>Enable/disable first person avatar (in-scene)</i> NOTE: Disabled at the moment</li>
+                <li><img src="icons/third_person.png"> <i>Enable/disable chase camera of 1st person avatar</i> NOTE: Disabled at the moment</li>
+            </ul>
+            <li>Invite others to the meeting by selecting the Share URL menuitem in the WebRTC menu.
+                In the dialog you may click the e-mail link to send others the URL.  Or copy/paste the URL.</li>
+            <ul><li>Note that only a max of 4 users are allowed at this point.</li></ul>
+            <li>When another user joins the meeting a video pane will appear for them.</li>
+            <li>You may also Chat with others be selecting the Chat menuitem from the WebRTC menu</li>
+            <li>Finally, when you are ready to leave the meeting, close the collaboration panel or select the Leave Meeting menu item from the WebRTC menu.</li>
+        </ul>
+
+        <h4>Remote Camera Control</h4>
+        <p>When enabled, your camera will also control all the remote user's cameras.  Control is automatically switched anytime someone enables this button.</p>
+
+        <h4>First Person Avatar</h4>
+        (<i>ISSUE: Current LMV build has broken this support</i>) This option enables/disables an avatar within the model.<br />Use in combination with the first person tool.</p>
+        <p><b>Chase Camera / 3rd Person</b> - This option moves the camera so that it follows your First Person Avatar.</p>
+        <p><b>Selection</b> - Selection state is also transmitted to all callers.  Therefore, if someone selects something then all other clients will see the selection in their views.</p>
+
+        <hr />
+        <h2>New Tools</h2>
+
+        <hr />
+        <h3><img src="icons/firstpersontool.png"> First Person Tool</h3>
+        This is a new tool that provides WASD game control style of movement.</p>
+        <p>Use the WASD keys to move forward/backward and slide left/right.  The QE keys will move vertically up/down.  The mouse cursor is used to
+        control the heading/direction.</p>
+        <p>The tool also supports “pointer lock” with supported browsers.  Press the TAB key to toggle this on/off.  When enabled, the cursor is
+        hidden and movement of the cursor outside of the browser window will still control the tool.  Pressing ESC while in pointer lock will return
+        to normal cursor control.  Pressing ESC when not in pointer lock will exit the tool and return to the default viewer tool.</p>
+        <p>Here are the keys:</p>
+        <ul>
+            <li>WS = Move Forward/Backward</li>
+            <li>AD = Slide Left/Right</li>
+            <li>QE = Move Up/Down</li>
+            <li>TAB = Toggle pointer lock</li>
+            <li>G = Toggle "Grab" mode</li>
+            <li>=/- = Increase/Decrease speed by 10%</li>
+            <li>0 = Reset default speed</li>
+        </ul>
+
+        <hr />
+        <h3><img src="icons/VRTool.png"> Virtual Reality Tool</h3>
+        <p>This is a tool that enables virtual reality (VR) support.  When toggled on it will auto-detect Web API for Head Mounted Displays (e.g. for Oculus) and use that if found.
+            This requires the Chromium browser (Chrome will not work). If Web API isn't found then it will check for "Device Orientation" support. This is
+            supported in mobile devices (e.g. Chrome on Android and now Safari on iOS 8.1) and used with Google Goggles, etc..</p>
+        <p><img src="icons/Oculus-50x50.jpg"> Head Mounted Displays (Oculus DK2, etc) - Orientation of camera should track head orientation.  To move in the scene you may use
+            the standard WASD and QE keys.  Press the SPACE key to toggle head movement support.  When enabled, your current head position becomes the new origin.  Movement ~6 inches away
+            this origin will begin moving the camera in the direction you move.  Farther away will move faster.  Return to origin to stop or press the SPACE bar to turn off the mode.</p>
+        <p><img src="icons/GoogleGoggles.jpg"> Device Orientation (Google Goggles, etc) - Orientation of camera should track device orientation.  Movement is supported by
+            the back facing camera and requires that there is enough ambient light (darkness won't work).  Toggle movement by momentarily blocking the camera with your hand or finger.
+            A message should display indicating movement started or stopped.  The camera movement might not be obvious if it's far from the model.  If you toggle movement on and
+            continue to block the camera, the speed will begin increasing.  Stop blocking the camera to stop increasing speed.  Block again to stop movement.</p>
+
+        <div class="well">
+            <p style="text-align: center">This is from the Office of the CTO : Please contact <a href="mailto:hans.kellner@autodesk.com?subject=LMV%20WebRTC">Hans Kellner</a> for more information.</p>
+        </div>
+
+        <!-- Modal -->
+        <div class="modal fade" id="myAboutModal" tabindex="-1" role="dialog" aria-labelledby="myAboutModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
+                        <h4 class="modal-title" id="myModalLabel">About OCTO Large Model Viewer</h4>
+                    </div>
+                    <div class="modal-body">
+                        <p>This is a modified version of the Large Model Viewer.  It contains various additions (experiments) such as support for collaboration (video/audio/chat),
+                        First Person View Tool for better movement, Virtual Reality (VR) modes for Oculus or Google Goggle style devices, and Leap Motion Controller use.</p>
+                        <p>This is from the Office of the CTO : Please contact <a href="mailto:hans.kellner@autodesk.com?subject=LMV%20WebRTC">Hans Kellner</a> for more information.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.1/js/bootstrap.min.js"></script>
+
+    <script type="text/javascript">
+
+    function handleModelFormSubmit()
+    {
+        var theForm = document.getElementById("remoteModelForm");
+        if (!theForm)
+            return false;
+
+        var modelURN = "";
+        var modelAT = "";
+        var modelENV = "";
+        for (var i = 0; i < theForm.length; ++i) {
+            var formElem = theForm.elements[i];
+            if (formElem.id === "URN")
+                modelURN = formElem.value;
+            else if (formElem.id === "ACCESSTOKEN")
+                modelAT = formElem.value;
+            else if (formElem.id === "ENV")
+                modelENV = formElem.value;
+        }
+
+        if (modelURN === "" || modelAT === "" || modelENV === "")
+            return false;
+
+        window.location.href = "viewer3d-octo2.html?document=urn:"+modelURN+"&accessToken="+modelAT+"&env="+modelENV;
+        return false; // prevent further bubbling of event
+    };
+
+    </script>
+
+</body>
+
+</html>

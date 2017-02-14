@@ -1,0 +1,42 @@
+<html>
+<head>
+    <link rel="shortcut icon" href="#" />
+    <script src="lmvworker.js"></script>
+    <script>
+    var tmpl_footer = `\nNETWORK:\n*`;
+    var html = `
+CACHE MANIFEST
+# this file's MIME-type is 'text/cache-manifest'
+three.min.js
+firefly.min.js
+lmvworker.js
+res/locales/en/allstrings.json
+res/environments/SharpHighlights_irr.logluv.dds
+res/environments/SharpHighlights_mipdrop.logluv.dds
+`;
+    var lmv = Autodesk.LMVTK;
+    var _url = location.href.split("=")[1];
+    var loadContext = { 
+        url: _url,
+        baseUrl: _url.slice(0, _url.lastIndexOf("/")+1),
+        options : { responseType : "arraybuffer" },
+        onError : function(e) { },
+        onOK : function(e) {
+            var svf = new lmv.Package(new Uint8Array(e));
+            svf.loadManifest(loadContext);
+            html+=_url+"\n";
+            for (asset of svf.manifest.assets) {
+                if (asset.URI.indexOf("embed") != 0) 
+                    html+=loadContext.baseUrl+asset.URI+"\n";
+            }
+            html+=tmpl_footer;
+            // Android only
+            window.JSINTERFACE.saveCacheManifestFile(filename, html);
+        },
+    }
+    avp.ViewingService.getItem(loadContext, loadContext.url, loadContext.onOK, loadContext.onError, loadContext.options);
+
+    </script>
+</head>
+
+</html>

@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Document API Demo : @buildnum@</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <meta charset="utf-8">
+
+    <link rel="stylesheet" href="style.css" type="text/css">
+
+    <script src="viewer3D.min.js"></script>
+    <script src="jquery-2.0.3.min.js"></script>
+
+    <style>
+        td, li {
+            position: relative;
+            left: 0.5em;
+            font-family: Arial, Verdana, Helvetica, sans-serif;
+            font-size: 13px;
+            color:#333333;
+        }
+
+        .dockingPanel td, .dockingPanel li {
+            font-family: Arial, Verdana, Helvetica, sans-serif;
+            font-size: 13px;
+            color: #ffffff;
+        }
+
+        .dockingPanel:hover {
+            cursor: move;
+        }
+
+        .simplePanelClose {
+            position: relative;
+            font-family: Arial, Verdana, Helvetica, sans-serif;
+            font-size: 15px;
+            text-align: right;
+            color: #add8e6;
+        }
+
+        .simplePanelClose:hover {
+            color: #ff0000;
+            cursor: pointer;
+        }
+
+        .json {
+            position: relative;
+            left: 0.5em;
+            font-family: Arial, Verdana, Helvetica, sans-serif;
+            font-size: 13px;
+            color:#333333;
+        }
+    </style>
+
+    <script>
+        function initialize() {
+            Autodesk.Viewing.Private.initializeEnvironmentVariable();
+            Autodesk.Viewing.Private.initializeServiceEndPoints();
+
+            Autodesk.Viewing.Private.initializeAuth();
+
+            $('#urn').keydown(function(e)
+            {
+                if(e.keyCode === 13 && this.value !== '')
+                {
+                    loadDocument(this.value);
+                }
+            });
+        }
+
+        function loadDocument(documentId)
+        {
+            // Load the document and build the tree.
+            //
+            $('#node_container').empty();
+            $('#tree_container').empty();
+            $('#raw_container').empty();
+            $('<td>Loading...</td>').appendTo('#tree_container');
+            Autodesk.Viewing.Document.load(documentId,
+                    function(document) { // onLoadCallback
+                        var rootItem = document.getRootItem();
+                        $('#tree_container').empty();
+                        var tree = new SimpleTree('tree_container', document, null);
+                    },
+                    function(msg) { // onErrorCallback
+                        $('#tree_container').empty();
+                        $('<td>Error</td>').appendTo('#tree_container');
+                    }
+            );
+
+        }
+
+        function createHTMLForNodeProperties(node, document)
+        {
+            var html = '<table>';
+            for(var property in node)
+            {
+                if(property !== 'children')
+                {
+                    if(property === 'hasThumbnail' && node[property] === 'true')
+                    {
+                        html += '<tr><td><b>Thumbnail</b></td><td><img src="' + document.getThumbnailPath(node, 300, 300) + '"></img></td></tr>';
+                    }
+                    else {
+                        html += '<tr><td><b>' + property + '</b></td><td>' + node[property] + '</td></tr>';
+                    }
+                }
+            }
+            html += '</table>';
+            return html;
+        }
+
+        // Example of a simple DockingPanel that displays the given content.
+        // The titlebar and move behavior are overridden in initialize(), which also
+        // creates a custom close button.
+        //
+        SimplePanel = function(parentContainer, id, title, content, x, y)
+        {
+            this.content = content;
+            Autodesk.Viewing.UI.DockingPanel.call(this, parentContainer, id, '', {shadow:true});
+
+            // Auto-fit to the content and don't allow resize.  Position at the coordinates given.
+            //
+            this.container.style.height = "auto";
+            this.container.style.width = "auto";
+            this.container.style.resize = "none";
+            this.container.style.left = x + "px";
+            this.container.style.top = y + "px";
+        };
+
+        SimplePanel.prototype = Object.create(Autodesk.Viewing.UI.DockingPanel.prototype);
+        SimplePanel.prototype.constructor = SimplePanel;
+
+        SimplePanel.prototype.initialize = function()
+        {
+            // Override DockingPanel initialize() to:
+            // - create a standard title bar
+            // - click anywhere on the panel to move
+            // - create a close element at the bottom right
+            //
+            this.title = this.createTitleBar(this.titleLabel || this.container.id);
+            this.container.appendChild(this.title);
+
+            this.container.appendChild(this.content);
+            this.initializeMoveHandlers(this.container);
+
+            this.closer = document.createElement("div");
+            this.closer.className = "simplePanelClose";
+            this.closer.textContent = "Close";
+            this.initializeCloseHandler(this.closer);
+            this.container.appendChild(this.closer);
+        };
+
+        SimpleTree = function(containerId, modelDocument, options)
+        {
+            var explorerDelegate = new Autodesk.Viewing.UI.TreeDelegate();
+
+            explorerDelegate.getTreeNodeId = function(node)
+            {
+                return node.guid;
+            };
+
+            explorerDelegate.getTreeNodeLabel = function(node)
+            {
+                // Just the name for now, but can display any info from the node.
+                //
+                return node.name ? node.name : node.role + ' ' + node.type;
+            };
+
+            explorerDelegate.getTreeNodeClass = function(node)
+            {
+                return '';
+            };
+
+            explorerDelegate.isTreeNodeGroup = function(node)
+            {
+                // Any node that has at least one child.
+                //
+                return (node.children && node.children.length > 0);
+            };
+
+            explorerDelegate.shouldCreateTreeNode = function(node)
+            {
+                return true;
+            };
+
+            explorerDelegate.onTreeNodeEnter = function(tree, node, event)
+            {
+                $('#raw_container').empty();
+                $('<div class="json">' + JSON.stringify(node) + '</div>').appendTo('#raw_container');
+
+                $('#node_container').empty();
+                var html = createHTMLForNodeProperties(node, modelDocument);
+                $(html).appendTo($('#node_container'));
+            };
+
+            explorerDelegate.onTreeNodeClick = function(tree, node, event)
+            {
+                // On click, popup a panel that displays the node's properties.
+                //
+                var html = createHTMLForNodeProperties(node, modelDocument);
+                var panel = new SimplePanel($('#top').get(0), node.guid, node.name, $(html).get(0), event.pageX, event.pageY);
+                panel.setVisible(true);
+            };
+
+            // Start the tree at the root of this document.
+            //
+            var container = document.getElementById(containerId);
+            Autodesk.Viewing.UI.Tree.call(this, explorerDelegate, modelDocument.getRootItem(), container, options);
+        };
+
+        SimpleTree.prototype = Object.create(Autodesk.Viewing.UI.Tree.prototype);
+        SimpleTree.prototype.constructor = SimpleTree;
+    </script>
+</head>
+
+<body onload="initialize();" oncontextmenu="return false;">
+    <div id="top" style="position:absolute; left:0px; width:100%; height:100%;">
+        <div id="documents" style="position:absolute; left:0px; width:200px; height:100%; background: white; border-style:solid; border-width: 1px;">
+            <table>
+                <tr><td><input id="urn" type="text" style="width:100%;" placeholder="Document URN"></input></td></tr>
+                <tr><td onmousedown="loadDocument('urn:dXJuOmFkc2suczM6ZGVyaXZlZC5maWxlOnRyYW5zbGF0aW9uXzI1X3Rlc3RpbmcvRFdGL0Nhci5kd2Y=');">Sample Inventor</td></tr>
+                <tr><td onmousedown="loadDocument('urn:dXJuOmFkc2subml0cm9nZW46ZnMuZmlsZTplYmRkNTIyYjRkMTg0ZDEwYjlkYzcxYjQ3N2NmYmMzOQ==');">Sample Revit</td></tr>
+            </table>
+        </div>
+        <div id="tree_container" style="position:absolute; left:200px; width:400px; height:100%; border-color: black; overflow-y: scroll; overflow-x:scroll; border-style:solid; border-width: 1px;"></div>
+        <div id="node_container" style="position:absolute; left:600px; width:600px; height:100%; border-color: black; overflow-y: scroll; overflow-x:auto; border-style:solid; border-width: 1px;"></div>
+        <div id="raw_container" style="position:absolute; left:1200px; width:600px; height:100%; border-color: black; overflow-y: scroll; overflow-x:auto; border-style:solid; border-width: 1px;"></div>
+    </div>
+</body>
+
+</html>

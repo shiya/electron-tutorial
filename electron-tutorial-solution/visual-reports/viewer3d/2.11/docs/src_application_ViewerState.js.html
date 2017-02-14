@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: src/application/ViewerState.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: src/application/ViewerState.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/** @license Copyright (c) 2013 Autodesk Inc. */
+/** Version : @buildnum@ */
+
+/**
+ * Responsible for creating and restoring viewer states.
+ *
+ * Main interactions come from methods
+ * - getState()
+ * - restoreState()
+ *
+ * Consumer classes can check if a given
+ *
+ * @tutorial viewer_state
+ * @param {Autodesk.Viewing.Viewer3D} viewer - Viewer instance used to operate on.
+ * @constructor
+ */
+Autodesk.Viewing.Private.ViewerState = function( viewer )
+{
+    /**
+     * All-inclusive filter constant used when no filter is provided.
+     * @type {boolean}
+     * @private
+     */
+    var FILTER_ALL = true;
+
+
+    /**
+     * Returns a unique identifier.
+     *
+     * @returns {string}
+     * @deprecated
+     * @private
+     */
+    function makeRandom() {
+        // TODO: think a better way to get random numbers (Math.random is not a good random function).
+        var random = Math.round(Math.random() * 0xffffffff);
+        var timestamp = Date.now();
+
+        return random.toString(16) + timestamp.toString(16);
+    }
+
+
+    /**
+     * Returns a viewer state Object for the current viewer instance.
+     *
+     * For details and sample usage, please check {@tutorial viewer_state}
+     *
+     * @param {Object} [filter] - Object with a structure similar to the output where
+     *                          values are replaced with Booleans true/false indicating
+     *                          whether they should be stored or not.
+     * @returns {Object} - Plain object describing the state of the viewer.
+     * @tutorial viewer_state
+     */
+    this.getState = function( filter ) {
+
+        var nav = viewer.navigation;
+        var avp = Autodesk.Viewing.Private;
+        var viewerState = {};
+
+        // Adding level-0 properties
+        viewerState["guid"] = makeRandom();
+        viewerState["seedURN"] = this.getSeedUrn();
+        viewerState["overrides"] = this.getTransformsOverrides();
+
+
+        // Object set, contains selection, isolation and explode value.
+        var objectSet = viewerState["objectSet"];
+        if (!Array.isArray(objectSet)) {
+            viewerState["objectSet"] = objectSet = [];
+        }
+        // Spec call for these elements to grouped in an Object at an Array's index 0.
+        // 3d models attributes
+        if(viewer.model &amp;&amp; !viewer.model.is2d()) {
+            objectSet[0] = {
+                id: this.getSelectedNodes(),
+                isolated: viewer.getIsolatedNodes(),
+                hidden: viewer.getHiddenNodes(),
+                explodeScale: viewer.getExplodeScale(),
+                idType: 'lmv'
+            };
+        }
+        // 2d models attributes
+        if(viewer.model &amp;&amp; viewer.model.is2d()) {
+            objectSet[0] = {
+                id: this.getSelectedNodes(), // Works for 2d and 3d
+                isolated: this.getVisibleLayers2d(),
+                hidden: [], // There's no hide feature for 2d.
+                idType: 'lmv'
+            };
+        }
+
+        // Viewport
+        var viewport = viewerState["viewport"];
+        if (!viewport) {
+            viewport = viewerState["viewport"] = {};
+        }
+        
+        var bPerspectiveCam = nav.getCamera().isPerspective;
+        viewport["name"] = ""; // TODO: Populate accordingly; Requested by the mobile team.
+        viewport["eye"] = nav.getPosition().toArray();
+        viewport["target"] = nav.getTarget().toArray();
+        viewport["up"] = nav.getCamera().up.toArray();
+        viewport["worldUpVector"] = nav.getWorldUpVector().toArray();
+        viewport["pivotPoint"] = nav.getPivotPoint().toArray();
+        viewport["distanceToOrbit"] = nav.getPivotPlaneDistance();
+        viewport["aspectRatio"] = this.getAspectRatio();
+        viewport["projection"] = bPerspectiveCam ? "perspective" : "orthographic";
+        viewport["isOrthographic"] = !bPerspectiveCam;
+        if (bPerspectiveCam) {
+            viewport["fieldOfView"] = nav.getVerticalFov();
+        } else {
+            viewport["orthographicHeight"] = this.getOrthographicHeight();
+        }
+
+
+        // Render Options
+        var renderOptions = viewerState["renderOptions"];
+        if (!renderOptions) {
+            renderOptions = viewerState["renderOptions"] = {};
+        }
+        renderOptions["environment"] = avp.LightPresets[viewer.impl.currentLightPreset()].name;
+        renderOptions["ambientOcclusion"] = {
+            enabled: viewer.impl.renderer().settings.sao,
+            radius: viewer.impl.renderer().getAORadius(),
+            intensity: viewer.impl.renderer().getAOIntensity()
+        };
+        renderOptions["toneMap"] = {
+            method: viewer.impl.renderer().getToneMapMethod(),
+            exposure: viewer.impl.renderer().getExposureBias(),
+            lightMultiplier: this.getToneMapIntensity()
+        };
+        renderOptions["appearance"] = {
+            ghostHidden: viewer.impl.showGhosting,
+            ambientShadow: viewer.prefs.ambientShadows,
+            antiAliasing: viewer.impl.renderer().settings.antialias,
+            progressiveDisplay: viewer.prefs.progressiveRendering,
+            displayLines: viewer.prefs.lineRendering
+        };
+
+        // Cutplanes (aka: Sectioning) are a 3d-only feature.
+        if (viewer.model &amp;&amp; !viewer.model.is2d()) {
+            var cutplanes = viewerState["cutplanes"] = [];
+            var planes = viewer.getCutPlanes();
+            for (var i=0; i&lt;planes.length; i++) {
+                cutplanes.push(planes[i].toArray());
+            }
+        }
+
+        // Allow extensions to inject their state data
+        for (var extensionName in viewer.loadedExtensions) {
+            viewer.loadedExtensions[extensionName].getState(viewerState);
+        }
+
+        // Filter out values the user doesn't want to consume before returning.
+        if (filter &amp;&amp; filter !== FILTER_ALL) {
+            this.applyFilter(viewerState, filter);
+        }
+        return viewerState;
+    };
+
+
+    /**
+     * Restores the associated viewer instance with the provided viewerState object.
+     *
+     * For details and sample usage, please check {@tutorial viewer_state}
+     *
+     * @param {Object} viewerState
+     * @param {Object} [filter] - Similar in structure to viewerState used to filter out values
+     *                            that should not be restored.
+     * @param {boolean} [immediate] - Whether the state should be apply with (false)
+     *                                or without (true) a smooth transition
+     *
+     * @returns {boolean} true, if the operation was successful.
+     * @tutorial viewer_state
+     */
+    this.restoreState = function( viewerState, filter, immediate ) {
+
+        if (!viewerState) {
+            stderr("restoreState has no viewer state to restore from.");
+            return false;
+        }
+
+        if (!viewer || !viewer.model) {
+            stderr("restoreState has no viewer or model to restore.");
+            return false;
+        }
+
+        if (filter &amp;&amp; filter !== FILTER_ALL) {
+            // To avoid modifying viewerState passed in, we create a clone of it
+            viewerState = JSON.parse(JSON.stringify(viewerState));
+            this.applyFilter(viewerState, filter);
+        }
+
+        // Abort if we are still animating
+        var nav = viewer.navigation;
+        if( nav.getTransitionActive() ) {
+            stderr("Abort restoreState, animation in progress...");
+            return false;
+        }
+
+        var isModel2d = viewer.model.is2d();
+        var isModel3d = !isModel2d;
+
+        // Objectset
+        if (viewer.model &amp;&amp; Array.isArray(viewerState.objectSet) &amp;&amp; viewerState.objectSet.length > 0) {
+            var objectSet = viewerState.objectSet[0];
+
+            // Selection (2d and 3d)
+            var selectionIds = objectSet.id;
+            if (selectionIds) {
+                selectionIds = this.toIntArray(selectionIds);
+                viewer.select(selectionIds);
+            }
+
+            // Isolation / Hidden depends on whether it is 2d or 3d
+            if (isModel2d) {
+
+                // 2d Isolation is Layer visibility
+                var visibleLayers = objectSet.isolated;
+                if (Array.isArray(visibleLayers) &amp;&amp; visibleLayers.length > 0) {
+                    // Only certain layers are visible
+                    viewer.setLayerVisible(null, false); // start by hiding all
+                    viewer.impl.setLayerVisible(visibleLayers, true);
+                } else {
+                    // All layers are visible
+                    viewer.setLayerVisible(null, true);
+                }
+            } else {
+                // 3d Isolation
+                var isolatedIds = objectSet.isolated || [];
+                isolatedIds = this.toIntArray(isolatedIds);
+                viewer.isolate(isolatedIds);
+
+                // 3d Hidden nodes (only when there's no isolation) (3d only)
+                if (isolatedIds.length === 0 ) {
+                    var hiddenIds = objectSet.hidden || null;
+                    if (hiddenIds &amp;&amp; hiddenIds.length > 0) {
+                        hiddenIds = this.toIntArray(hiddenIds);
+                        viewer.hide(hiddenIds);
+                    }
+                }
+            }
+
+            // Explode scale (3d)
+            if ("explodeScale" in objectSet) {
+                var explodeScale = parseFloat(objectSet.explodeScale);
+                if(viewer.explode) {
+                    viewer.explode(explodeScale);
+                }
+            }
+        }
+
+        var viewport = viewerState.viewport;
+        if (viewport) {
+
+            var eye = this.getVector3FromArray(viewport.eye, nav.getPosition());
+            var up = this.getVector3FromArray(viewport.up, nav.getCamera().up);
+            var target = this.getVector3FromArray(viewport.target, nav.getTarget());
+            var fov = ("fieldOfView" in viewport) ? parseFloat(viewport.fieldOfView) : nav.getVerticalFov();
+            var worldUp = this.getVector3FromArray(viewport.worldUpVector, null);
+            if (!worldUp) {
+                var upVectorArray = viewer.model ? viewer.model.getUpVector() : null;
+                if (upVectorArray) {
+                    worldUp = new THREE.Vector3().fromArray(upVectorArray);
+                } else {
+                    worldUp = new THREE.Vector3(0,1,0); // TODO: Can we do better? Is it worth it?
+                }
+            }
+
+            // Retain current values if not available in restore object
+            var isPerspective = nav.getCamera().isPerspective;
+            if ('isOrthographic' in viewport) {
+                isPerspective = !viewport.isOrthographic;
+            }
+            var orthoScale = this.getOrthographicHeight();
+            if ('orthographicHeight' in viewport) {
+                orthoScale = Number(viewport.orthographicHeight);
+            }
+
+            // Pivot is currently not taken into account. Target is set as the new pivot.
+            var camera = {
+                position: eye,
+                target: target,
+                up: up,
+                worldup: worldUp,
+                aspect: viewer.impl.camera.aspect,
+                fov: fov,
+                orthoScale: orthoScale,
+                isPerspective: isPerspective
+            };
+
+            this.restoreCameraState(camera, immediate);
+        }
+
+
+        // Render option state
+        var renderOptions = viewerState.renderOptions;
+        if (renderOptions) {
+
+            // current values
+            var saoEnabled = viewer.prefs.ambientShadows;
+            var antiAliasing = viewer.prefs.antialiasing;
+
+            var sao = renderOptions.ambientOcclusion;
+            if (sao) {
+                if ("enabled" in sao) {
+                    saoEnabled = sao.enabled;
+                }
+                var saoRadius = ("radius" in sao) ? sao.radius : null;
+                var saoIntensity = ("intensity" in sao) ? sao.intensity : null;
+                if (saoRadius !== null &amp;&amp; saoIntensity !== null) {
+                    viewer.impl.renderer().setAOOptions(saoRadius, saoIntensity);
+                    viewer.impl.renderer().composeFinalFrame(false);
+                }
+            }
+
+            if ("environment" in renderOptions) {
+                var lightPresetIndex = this.getLightPresetIndex(renderOptions.environment);
+                if (lightPresetIndex !== -1 &amp;&amp; isModel3d) {
+                    viewer.setLightPreset(lightPresetIndex);
+                }
+            }
+
+            // ToneMap values are overrides to the environment settings.
+            var toneMap = renderOptions.toneMap;
+            if (toneMap) {
+                var lightMultiplier = "lightMultiplier" in toneMap ?  toneMap.lightMultiplier : null;
+                var exposure = "exposure" in toneMap ? toneMap.exposure : null;
+                if (lightMultiplier !== null &amp;&amp; exposure !== null) {
+                    if (viewer.impl.dir_light1) {
+                        viewer.impl.dir_light1.intensity = Math.pow(2.0, lightMultiplier);
+                    }
+                    viewer.impl.renderer().setTonemapExposureBias(exposure, lightMultiplier);
+                    viewer.impl.invalidate(true);
+                }
+            }
+
+            var appearance = renderOptions.appearance;
+            if (appearance) {
+                if ("antiAliasing" in appearance) {
+                    antiAliasing = appearance.antiAliasing;
+                }
+                if ("progressiveDisplay" in appearance) {
+                    viewer.setProgressiveRendering(appearance.progressiveDisplay);
+                }
+                if (("ghostHidden" in appearance) &amp;&amp; isModel3d) {
+                    viewer.setGhosting(appearance.ghostHidden);
+                }
+                if ("displayLines" in appearance) {
+                    viewer.hideLines(!appearance.displayLines);
+                }
+            }
+
+            // SAO and AA at the end.
+            if (isModel3d) {
+                viewer.setQualityLevel(saoEnabled, antiAliasing);
+            }
+        }
+
+        // Restore cutplanes (aka: Sectioning) data only for 3d models.
+        if (Array.isArray(viewerState.cutplanes) &amp;&amp; viewer.model &amp;&amp; isModel3d) {
+            var cutplanes = [];
+            for (var i=0; i&lt;viewerState.cutplanes.length; i++) {
+                var plane = viewerState.cutplanes[i];
+                if (Array.isArray(plane) &amp;&amp; plane.length >= 4) {
+                    cutplanes.push(new THREE.Vector4(plane[0], plane[1], plane[2], plane[3]));
+                }
+            }
+            viewer.setCutPlanes(cutplanes);
+        }
+
+        // Allow extensions to restore their data
+        for (var extensionName in viewer.loadedExtensions) {
+            viewer.loadedExtensions[extensionName].restoreState(viewerState, immediate);
+        }
+
+        return true;
+    };
+
+    /**
+     * Restores camera states values back into the viewer.
+     * We avoid using methods such as setViewFromCamera() because those make some
+     * assumptions about the current state of the viewer. We need no such things.
+     *
+     * Note: Implementation based on Viewer3DImpl.setViewFromCamera()
+     *
+     * @param {Object} camera
+     * @param {Boolean} immediate
+     * @private
+     */
+    this.restoreCameraState = function(camera, immediate) {
+
+        viewer.impl.adjustOrthoCamera(camera);
+        var navapi = viewer.navigation;
+
+        if (!immediate) {
+            // With animation
+            viewer.impl.camera.isPerspective = camera.isPerspective;
+            navapi.setRequestTransitionWithUp(true, camera.position, camera.target, camera.fov, camera.up, camera.worldup);
+        } else {
+            // Instantaneous, no animation
+            if (camera.isPerspective) {
+                navapi.toPerspective();
+            } else {
+                navapi.toOrthographic();
+            }
+            navapi.setCameraUpVector(camera.up);
+            navapi.setWorldUpVector(camera.worldup);
+            navapi.setView(camera.position, camera.target);
+            navapi.setPivotPoint(camera.target);
+            navapi.setVerticalFov(camera.fov, false);
+
+            viewer.impl.syncCamera(true);
+        }
+    };
+
+    /**
+     * Helper method with the intent to change the type of an array with ids from String to ints.
+     * We need this method because we need to make sure that ids that get fed into the ViewerState
+     * are in the correct type.
+     *
+     * @param {Array} array - example: ["45", "33", "1"]
+     * @returns {Array} - example: [45, 33, 1]
+     * @private
+     */
+    this.toIntArray = function( array ) {
+        var ret = [];
+        if (Array.isArray(array)) {
+            for (var i= 0, len=array.length; i&lt;len; ++i) {
+                ret.push( parseInt(array[i]) );
+            }
+        }
+        return ret;
+    };
+
+    /**
+     * Helper function that given a viewer state, extracts the selected nodes.
+     *
+     * @param {Object} viewerState - for example, the result of this.getState().
+     * @return {Array} Array containing Number-typed ids of the selected nodes. Empty array when no 'selected'
+     *                 objectSet value is defined.
+     * @private
+     * @deprecated
+     */
+    this.extractSelectedNodeIds = function( viewerState ) {
+
+        if (viewerState &amp;&amp; Array.isArray(viewerState.objectSet) &amp;&amp; viewerState.objectSet.length > 0) {
+            var objectSet = viewerState.objectSet[0];
+            return this.toIntArray(objectSet.id);
+        }
+        return [];
+    };
+
+    /**
+     * Helper function that given a viewer state, extracts the isolated nodes.
+     *
+     * @param {Object} viewerState - for example, the result of this.getState().
+     * @return {Array} Array containing Number-typed ids of the isolated nodes. Empty array when no 'isolated'
+     *                 objectSet value is defined.
+     * @private
+     * @deprecated
+     */
+    this.extractIsolatedNodeIds = function( viewerState ) {
+
+        if (viewerState &amp;&amp; Array.isArray(viewerState.objectSet) &amp;&amp; viewerState.objectSet.length > 0) {
+            var objectSet = viewerState.objectSet[0];
+            return this.toIntArray(objectSet.isolated);
+        }
+        return [];
+    };
+
+    /**
+     * Helper method that constructs a Vector3 from a given Array.
+     * If Array is not well-formed, then the failValue is return instead.
+     *
+     * @param {Array} array - An array with 3 values
+     * @param {THREE.Vector3} failValue - If array param is invalid, failValue will be returned instead.
+     *
+     * @returns {THREE.Vector3} either a new Vector with values coming from 'array' or failValue.
+     * @private
+     */
+    this.getVector3FromArray = function(array, failValue) {
+
+        if (array instanceof Array &amp;&amp; array.length > 2) {
+
+            // Some array values are exported as string-of-numbers. Fix that here.
+            array[0] = parseFloat(array[0]);
+            array[1] = parseFloat(array[1]);
+            array[2] = parseFloat(array[2]);
+            return new THREE.Vector3().fromArray(array);
+        }
+        return failValue;
+    };
+
+    /**
+     * Helper function that returns selected node ids in an array.
+     * @returns {Array}
+     * @private
+     */
+    this.getSelectedNodes = function() {
+
+        return viewer.impl &amp;&amp; viewer.impl.selector ? viewer.impl.selector.getSelection() : [];
+
+    };
+
+    /**
+     * Helper function that returns the index values of the isolated (visible) layers
+     * Applies only to 2d models/blueprints
+     * @private
+     */
+    this.getVisibleLayers2d = function() {
+        var ret = [];
+        var materialManager = viewer.impl.matman();
+        var layersMap = materialManager.layersMap;
+        for (var layerIndex in layersMap) {
+            if (layersMap.hasOwnProperty(layerIndex)) {
+                if (materialManager.isLayerVisible(layerIndex)){
+                    ret.push(layerIndex);
+                }
+            }
+        }
+        return ret;
+    };
+
+    /**
+     * Gets the aspect ratio.
+     *
+     * @returns {number} aspect ratio
+     * @private
+     */
+    this.getAspectRatio = function() {
+        var viewport = viewer.navigation.getScreenViewport();
+        var aspect = viewport.width / viewport.height;
+        return aspect;
+    };
+
+    /**
+     * Returns world height when in orthographic camera mode.
+     * @returns {number}
+     * @private
+     */
+    this.getOrthographicHeight = function() {
+        var cam = viewer.navigation.getCamera();
+        if (cam.isPerspective) return 0;
+        return Math.abs(2 * cam.orthographicCamera.top);
+    };
+
+    /**
+     * Returns the URN of the document model.
+     * @returns {String}
+     */
+    this.getSeedUrn = function() {
+        if (viewer.model &amp;&amp; viewer.model.loader) {
+            return viewer.model.loader.svfUrn || "";
+        }
+        return "";
+    };
+
+    /**
+     * TODO: Add proper comment
+     * @returns {{}}
+     * @private
+     */
+    this.getTransformsOverrides = function() {
+
+        // TODO: Add proper implementation.
+        return  { transformations: [] };
+    };
+
+    /**
+     * Returns the slider value for the viewer's current light intensity
+     * @returns {number}
+     * @private
+     */
+    this.getToneMapIntensity = function () {
+
+        // Original code from RenderOptionsPanel.js
+        // Should probably live elsewhere in the api.
+        var intensity = 0.0;
+        if (viewer.impl.dir_light1) {
+            if (viewer.impl.dir_light1.intensity != 0)
+                intensity = Math.log(viewer.impl.dir_light1.intensity)/Math.log(2.0);
+            else
+                intensity = -1e-20;
+        }
+        return intensity;
+    };
+
+    /**
+     * Returns the index of the LightPreset with a matching name value.
+     * @param environmentName
+     * @returns {number} index of LightPreset, or -1 if not found.
+     * @private
+     */
+    this.getLightPresetIndex = function ( environmentName ) {
+
+        var avp = Autodesk.Viewing.Private;
+        for (var i=0; i&lt;avp.LightPresets.length; i++) {
+            if (avp.LightPresets[i].name === environmentName) {
+                return i;
+            }
+        }
+        return -1;
+    };
+
+    /**
+     * Filters out key/value pairs from the viewerState.
+     *
+     * @note To get all of the values available use FILTER_ALL. If no filter is provided FILTER_ALL will be used.
+     *       It is encourage for consumers to define their specialized filters.
+     *
+     * @param {Object} viewerState - Object to be filtered.
+     * @param {Object} filter - Object with a similar structure to viewerState, where values are Booleans signaling which
+     *                          elements should be included (true) and which ones should not (false).
+     *                          If a viewerState key is not found in the filter, we assume that it is non-wanted.
+     *
+     * @private
+     */
+    this.applyFilter = function( viewerState, filter ) {
+
+        // Check the 'ALL' filter
+        if (filter === true) return;
+
+        // Filtering only 1 level depth keys
+        // Additional levels are checked recursively.
+        for (var key in viewerState) {
+
+            if (!viewerState.hasOwnProperty(key)) {
+                continue;
+            }
+
+            // Try to find the key in the filter object
+            var filterValue = filter[key];
+
+            if (filterValue === undefined) {
+
+                // key not enabled in filter, remove key/value pair from viewerState.
+                delete viewerState[key];
+                stderr("[applyFilter] C - skipping key [" + key + "] from viewerState; unspecified in filter.");
+            }
+            else if (typeof(filterValue) === 'boolean') {
+
+                if (filterValue === false) {
+                    // key explicitly flagged for removal, remove key/value pair from viewerState.
+                    delete viewerState[key];
+                    stderr("[applyFilter] D - skipping key [" + key + "] from viewerState; explicit filtering.");
+                }
+            }
+            else if (filterValue instanceof Object) {
+
+                if (viewerState[key] instanceof Object) {
+                    // Both are Objects, recursive call on them.
+                    this.applyFilter(viewerState[key], filter[key]);
+                } else {
+                    // This case signals a miss-match between filter and value.
+                    // Since it's an undefined case, we'll be inclusive for the time being.
+                    // *** Keep the value in viewerState ***
+                    stderr("[applyFilter] A - Invalid filter Object for key [" + key + "]");
+                }
+            }
+            else {
+
+                // Note: Every other value for filter is invalid.
+                // For now, we'll keep the key/value in viewerState.
+                stderr("[applyFilter] B - Invalid filter value for key [" + key + "]");
+            }
+
+        }
+    };
+
+};
+
+Autodesk.Viewing.Private.ViewerState.prototype.constructor = Autodesk.Viewing.Private.ViewerState;
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Autodesk.Viewing.ApplicationScreenModeDelegate.html">ApplicationScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.Comments.CommentsExtension.html">CommentsExtension</a></li><li><a href="Autodesk.Viewing.Document.html">Document</a></li><li><a href="Autodesk.Viewing.Extension.html">Extension</a></li><li><a href="Autodesk.Viewing.Extensions.FirstPerson.FirstPersonExtension.html">FirstPersonExtension</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.CreateCircle.html">CreateCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.DeleteCircle.html">DeleteCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditAction.html">EditAction</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditMode.html">EditMode</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditModeCircle.html">EditModeCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.Markup.html">Markup</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupRectangle.html">MarkupRectangle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore.html">MarkupsCore</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.SetCircle.html">SetCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Measure.MeasureExtension.html">MeasureExtension</a></li><li><a href="Autodesk.Viewing.FileLoader.html">FileLoader</a></li><li><a href="Autodesk.Viewing.GuiViewer3D.html">GuiViewer3D</a></li><li><a href="Autodesk.Viewing.HotkeyManager.html">HotkeyManager</a></li><li><a href="Autodesk.Viewing.Initializer.html">Initializer</a></li><li><a href="Autodesk.Viewing.Model.html">Model</a></li><li><a href="Autodesk.Viewing.NullScreenModeDelegate.html">NullScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.Private.Preferences.html">Preferences</a></li><li><a href="Autodesk.Viewing.Private.ViewerState.html">ViewerState</a></li><li><a href="Autodesk.Viewing.ScreenModeDelegate.html">ScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.ToolController.html">ToolController</a></li><li><a href="Autodesk.Viewing.ToolInterface.html">ToolInterface</a></li><li><a href="Autodesk.Viewing.UI.Button.html">Button</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html">ComboButton</a></li><li><a href="Autodesk.Viewing.UI.Control.html">Control</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html">ControlGroup</a></li><li><a href="Autodesk.Viewing.UI.DockingPanel.html">DockingPanel</a></li><li><a href="Autodesk.Viewing.UI.ObjectContextMenu.html">ObjectContextMenu</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html">RadioButtonGroup</a></li><li><a href="Autodesk.Viewing.UI.SettingsPanel.html">SettingsPanel</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html">ToolBar</a></li><li><a href="Autodesk.Viewing.Viewer3D.html">Viewer3D</a></li><li><a href="Autodesk.Viewing.ViewingApplication.html">ViewingApplication</a></li><li><a href="Autodesk.Viewing.ViewingUtilities.html">ViewingUtilities</a></li></ul><h3>Events</h3><ul><li><a href="Autodesk.Viewing.UI.Button.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Button.html#event:STATE_CHANGED">STATE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Button.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:STATE_CHANGED">STATE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Control.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Control.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:ACTIVE_BUTTON_CHANGED">ACTIVE_BUTTON_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li></ul><h3>Tutorials</h3><ul><li>feature_markup</li></ul>
+</nav>
+
+<br clear="both">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.3.0-alpha11</a> on Fri Apr 15 2016 17:19:51 GMT+0800 (CST)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

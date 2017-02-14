@@ -1,0 +1,5 @@
+{
+    "ADSK_API_HOST":     "developer-stg.api.autodesk.com",
+    "API_KEY":    "Override this in a file named local-stg.json",
+    "API_SECRET": "Override this in a file named local-stg.json"
+}

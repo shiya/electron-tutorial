@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: src/globalinit.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: src/globalinit.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>
+(function() {
+
+var av = Autodesk.Viewing,
+    avp = av.Private;
+
+    var global = av.getGlobal();
+
+    global.auth = null;
+    global.VIEWING_URL = undefined;
+    global.ACM_SESSION_URL = undefined;
+    global.OSS_URL = undefined;
+    global.PROTEIN_ROOT = null;
+    global.PRISM_ROOT = null;
+    global.LOCALIZATION_REL_PATH = "";
+    global.LMV_VIEWER_VERSION = "@build_version@";  // Gets replaced with content from deployment/package.json
+    global.LMV_VIEWER_PATCH = "@build_number@";// Gets replaced with build number from TeamCity
+    global.LMV_BUILD_TYPE = "@build_type@"; // Either Development, Staging or Production
+    global.LMV_RESOURCE_VERSION = null;
+    global.LMV_RESOURCE_ROOT = "";
+    global.LMV_THIRD_PARTY_COOKIE = undefined;
+
+    global.stderr = function() {
+        if (ENABLE_TRACE) {
+            console.log.apply(console, arguments);
+        }
+    };
+
+    avp.env = null;
+    avp.logger = null;
+// GUID of the current active document item.
+    avp.docItemId = null;
+
+    avp.token = {
+        accessToken : null,
+        getAccessToken : null,
+        tokenRefreshInterval : null
+    };
+
+    // If true, will use a different code path where data structures are
+    // optimized for using less memory.
+    avp.memoryOptimizedLoading = true;
+    avp.GPU_MEMORY_LIMIT = 256 * 1024 * 1024;
+    avp.GPU_OBJECT_LIMIT = 10000;
+
+    var isWeakDevice = (av.isMobileDevice());
+    if (!isWeakDevice) {
+        // This is the fragments count that will persistent in memory all the time
+        // even memory is low and some of geometry will be deleted.
+        avp.FRAGS_PERSISTENT_COUNT = 10000;
+        // This is roughly the max number of fragments that can be handled in one go,
+        // and in other words, exceeding this count will trigger on demand loading.
+        // I guess on mobile device, this need to change to a smaller value.
+        avp.FRAGS_PERSISTENT_MAX_COUNT = 800000;
+        // ??? Approximately use a max geometry count as a hint for
+        // ??? when start to remove geometry to release memory.
+        // ??? This needs experiments and dynamically change due to differnt browsers.
+        avp.GEOMS_COUNT_LIMIT = 300000;
+    }
+    else {
+        // The following value are adjusted for weak device.
+        // ??? This should be configurable for different type of devices.
+        avp.FRAGS_PERSISTENT_COUNT = 2000;
+        avp.FRAGS_PERSISTENT_MAX_COUNT = 150000;
+        avp.GEOMS_COUNT_LIMIT = 8000;
+    }
+
+    // Options for limit memory usage.
+    // 1. On demand loading will delay geometry pack file loading,
+    //    until rendering need it.
+    // 2. As one geometry pack file can contain many meshes that will
+    //    be used by a lot of fragments, so can even dismiss those meshes
+    //    that are culled by current rendering.
+    // 3. Page out geometry acutally will remove some geometry out of core,
+    //    so as to free more memory for further rendering.
+    // ??? These options will impact rendering performance.
+    avp.onDemandLoading = false &amp;&amp; avp.memoryOptimizedLoading;
+    avp.cullGeometryOnLoading = true &amp;&amp; avp.onDemandLoading;
+    avp.pageOutGeometryEnabled = true &amp;&amp; avp.onDemandLoading;
+    avp.PAGEOUT_SUCCESS = 0;
+    avp.PAGEOUT_FAIL = 1;
+    avp.PAGEOUT_NONE = 2;
+    avp.PAGEOUT_PERCENTAGE = 0.35;
+    avp.GEOMS_PAGEOUT_COUNT = avp.GEOMS_COUNT_LIMIT * avp.PAGEOUT_PERCENTAGE;
+
+    // A list of resources that record the URL and necessary auxilary information (such as ACM headers and / or
+    // session id) required to get the resource. This bag of collection will be passed from JS to native code so
+    // all viewer consumable resources could be downloaded on native side for offline viewing.
+    // avp.assets = isAndroidDevice() ? [] : null;
+    avp.assets = [];
+    // Set viewer in offline mode if set to true. In offline mode, viewer would ignore all URNs in bubble JSON
+    // and assume the viewables are laid out in local file system path relative to the bubble.json.
+    avp.offline = false;
+    // Offline resource prefix specified by viewer consumer (e.g. IOS web view). Used as prefix to concatenate with
+    // each resource relative path to form the absolute path of each resource.
+    avp.offlineResourcePrefix = null;
+
+    var LmvEndpoints = {
+        local: {
+            LOGGING:    'rtc-dev.api.autodesk.com',
+            RTC:        ['https://rtc-dev.api.autodesk.com:443', 'https://lmv.autodesk.com:443'] //port # is required here.
+        },
+        dev: {
+            LOGGING:    'rtc-dev.api.autodesk.com',
+            RTC:        ['https://rtc-dev.api.autodesk.com:443', 'https://lmv.autodesk.com:443']
+        },
+        stg: {
+            LOGGING:    'rtc-stg.api.autodesk.com',
+            RTC:        ['https://rtc-stg.api.autodesk.com:443', 'https://lmv.autodesk.com:443']
+        },
+        prod: {
+            LOGGING:    'rtc.api.autodesk.com',
+            RTC:        ['https://rtc.api.autodesk.com:443', 'https://lmv.autodesk.com:443']
+        }
+    };
+
+    var ViewingApiUrls = {
+        local: "",
+        dev: "https://viewing-dev.api.autodesk.com",
+        stg: "https://viewing-staging.api.autodesk.com",
+        prod: "https://viewing.api.autodesk.com"
+    };
+
+    var DevApiUrls = {
+        local: "",
+        dev: "https://developer-dev.api.autodesk.com",
+        stg: "https://developer-stg.api.autodesk.com",
+        prod: "https://developer.api.autodesk.com"
+    };
+
+    // The apps on https://developer.autodesk.com had to be created under an ADS account... Ask for brozp
+    var AdpConfigs = {
+        dev: { CLIENT_ID: 'lmv-dev', CLIENT_KEY: 'vcmQyLIGxGeqGRPYDoVQeeoRUAFgibZp', ENDPOINT: 'https://ase-dev.autodesk.com' },
+        stg: { CLIENT_ID: 'lmv-stag', CLIENT_KEY: 'kjemi1rwAgsqIqyvDUtc9etPD6MsAzbV', ENDPOINT: 'https://ase-stg.autodesk.com' },
+        prod: { CLIENT_ID: 'lmv-prod', CLIENT_KEY: 'iaoUM2CRGydfn703yfPq4MAogZi8I5u4', ENDPOINT: 'https://ase.autodesk.com' }
+    }
+
+    var APIS = {
+        ACM : '/oss-ext/v1/acmsessions',
+        OSS : '/oss/v1',
+        VIEWING : '/viewingservice/v1',
+        VIEWING2 : '/derivativeservice/v2'
+    };
+
+    avp.EnvironmentConfigurations = {
+        Local: {
+            ROOT:       '',
+            VIEWING:    '',
+            ACM:        '',
+            OSS:        '',
+            LMV:        LmvEndpoints["local"]
+        },
+        Development: {
+            ROOT:       ViewingApiUrls["dev"],
+            VIEWING:    ViewingApiUrls["dev"] + APIS.VIEWING,
+            ACM:        DevApiUrls["dev"] + APIS.ACM,
+            OSS:        DevApiUrls["dev"] + APIS.OSS,
+            LMV:        LmvEndpoints["dev"]
+        },
+        Staging: {
+            ROOT:       ViewingApiUrls["stg"],
+            VIEWING:    ViewingApiUrls["stg"] + APIS.VIEWING,
+            ACM:        DevApiUrls["stg"] + APIS.ACM,
+            OSS:        DevApiUrls["stg"] + APIS.OSS,
+            LMV:        LmvEndpoints["stg"]
+        },
+        Production: {
+            ROOT:       ViewingApiUrls["prod"],
+            VIEWING:    ViewingApiUrls["prod"] + APIS.VIEWING,
+            ACM:        DevApiUrls["prod"] + APIS.ACM,
+            OSS:        DevApiUrls["prod"] + APIS.OSS,
+            LMV:        LmvEndpoints["prod"]
+        },
+        AutodeskDevelopment: {
+            ROOT:       DevApiUrls["dev"],
+            VIEWING:    DevApiUrls["dev"] + APIS.VIEWING,
+            ACM:        DevApiUrls["dev"] + APIS.ACM,
+            OSS:        DevApiUrls["dev"] + APIS.OSS,
+            LMV:        LmvEndpoints["dev"]
+        },
+        AutodeskStaging: {
+            ROOT:       DevApiUrls["stg"],
+            VIEWING:    DevApiUrls["stg"] + APIS.VIEWING,
+            ACM:        DevApiUrls["stg"] + APIS.ACM,
+            OSS:        DevApiUrls["stg"] + APIS.OSS,
+            LMV:        LmvEndpoints["stg"]
+        },
+        AutodeskProduction: {
+            ROOT:       DevApiUrls["prod"],
+            VIEWING:    DevApiUrls["prod"] + APIS.VIEWING,
+            ACM:        DevApiUrls["prod"] + APIS.ACM,
+            OSS:        DevApiUrls["prod"] + APIS.OSS,
+            LMV:        LmvEndpoints["prod"]
+        },
+        DevelopmentV2: {
+            ROOT:       ViewingApiUrls["dev"],
+            VIEWING:    ViewingApiUrls["dev"] + APIS.VIEWING2,
+            ACM:        DevApiUrls["dev"] + APIS.ACM,
+            OSS:        DevApiUrls["dev"] + APIS.OSS,
+            LMV:        LmvEndpoints["dev"]
+        },
+        StagingV2: {
+            ROOT:       ViewingApiUrls["stg"],
+            VIEWING:    ViewingApiUrls["stg"] + APIS.VIEWING2,
+            ACM:        DevApiUrls["stg"] + APIS.ACM,
+            OSS:        DevApiUrls["stg"] + APIS.OSS,
+            LMV:        LmvEndpoints["stg"]
+        },
+        ProductionV2: {
+            ROOT:       ViewingApiUrls["prod"],
+            VIEWING:    ViewingApiUrls["prod"] + APIS.VIEWING2,
+            ACM:        DevApiUrls["prod"] + APIS.ACM,
+            OSS:        DevApiUrls["prod"] + APIS.OSS,
+            LMV:        LmvEndpoints["prod"]
+        },
+        AutodeskDevelopmentV2: {
+            ROOT:       DevApiUrls["dev"],
+            VIEWING:    DevApiUrls["dev"] + APIS.VIEWING2,
+            ACM:        DevApiUrls["dev"] + APIS.ACM,
+            OSS:        DevApiUrls["dev"] + APIS.OSS,
+            LMV:        LmvEndpoints["dev"]
+        },
+        AutodeskStagingV2: {
+            ROOT:       DevApiUrls["stg"],
+            VIEWING:    DevApiUrls["stg"] + APIS.VIEWING2,
+            ACM:        DevApiUrls["stg"] + APIS.ACM,
+            OSS:        DevApiUrls["stg"] + APIS.OSS,
+            LMV:        LmvEndpoints["stg"]
+        },
+        AutodeskProductionV2: {
+            ROOT:       DevApiUrls["prod"],
+            VIEWING:    DevApiUrls["prod"] + APIS.VIEWING2,
+            ACM:        DevApiUrls["prod"] + APIS.ACM,
+            OSS:        DevApiUrls["prod"] + APIS.OSS,
+            LMV:        LmvEndpoints["prod"]
+        }
+    };
+
+
+    avp.initializeEnvironmentVariable = function (options) {
+        var env;
+
+        // Use the enviroment that was explicitly specified.
+        //
+        if (options &amp;&amp; options.env) {
+            env = options.env;
+        }
+
+        // If not available, check if the environment was specified in the query parameters.
+        //
+        if (!env) {
+            env = avp.getParameterByName("env");
+        }
+
+        if (options &amp;&amp; options.offlineResourcePrefix) {
+            avp.offlineResourcePrefix = options.offlineResourcePrefix;
+        }
+
+        if (options &amp;&amp; options.offline &amp;&amp; options.offline === "true") {
+            avp.offline = true;
+        }
+
+        // If still not available, try to resolve the environment based on the url.
+        //
+        if (!env) {
+            // FIXME: with the introduction of v2 end points, this would not work. We either
+            // have to enforce user must pass an env variable to viewer, or parse URL here.
+            switch (window.location.hostname) {
+                case "viewing-dev.api.autodesk.com" :
+                    env = 'Development';
+                    break;
+                case "viewing-staging.api.autodesk.com" :
+                    env = 'Staging';
+                    break;
+                case "viewing.api.autodesk.com" :
+                    env = 'Production';
+                    break;
+                case "developer-dev.api.autodesk.com" :
+                    env = 'AutodeskDevelopment';
+                    break;
+                case "developer-stg.api.autodesk.com" :
+                    env = 'AutodeskStaging';
+                    break;
+                case "developer.api.autodesk.com" :
+                    env = 'AutodeskProduction';
+                    break;
+
+                case "localhost.autodesk.com" :
+                    env = 'Local';
+                    break;
+                case "" : // IP addresses on Chrome.
+                    env = 'Local';
+                    break;
+                case "127.0.0.1" :
+                    env = 'Local';
+                    break;
+                default:
+                    env = 'AutodeskProduction';
+            }
+        }
+
+        console.log("Host name : " + window.location.hostname);
+        console.log("Environment initialized as : " + env);
+        avp.env = env;
+    };
+
+    avp.initializeServiceEndPoints = function (options) {
+        var env = avp.env;
+        var config = avp.EnvironmentConfigurations[env];
+        VIEWING_URL = config['VIEWING'];
+        ACM_SESSION_URL = config['ACM'];
+        OSS_URL = config['OSS'];
+
+        //Derive the root for static viewer resources based on the
+        //location of the main viewer script
+        var libList = [
+            "viewer3D.js",
+            "viewer3D.min.js",
+            "firefly.js",
+            "firefly.min.js"
+        ];
+        if (options &amp;&amp; options.hasOwnProperty('libraryName'))
+            libList.push(options.libraryName);
+
+        var root;
+        var scriptUrl;
+
+        // TODO_NOP: this doesn't work for Polymer / Web Components
+        for (var i=0; i&lt;libList.length; i++) {
+            var script = avp.getScript(libList[i]);
+            scriptUrl = script ? script.src : "";
+            var idx = scriptUrl.indexOf(libList[i]);
+            if (idx >= 0) {
+                root = scriptUrl.substr(0, idx);
+                break;
+            }
+        }
+
+        //Derive any custom version request
+        LMV_RESOURCE_VERSION = "v" + LMV_VIEWER_VERSION;
+
+        var version = avp.getParameterByNameFromPath("v", scriptUrl);
+        if (version &amp;&amp; version.length &amp;&amp; version != LMV_RESOURCE_VERSION) {
+            console.warn("Version string mismatch between requested and actual version: " + version + " vs. " + LMV_RESOURCE_VERSION + ". Using " + version);
+            LMV_RESOURCE_VERSION = version;
+        } else if (!version || !version.length) {
+            LMV_RESOURCE_VERSION = null;
+            console.info("No viewer version specified, will implicitly use " + LMV_VIEWER_VERSION);
+        }
+
+        LMV_RESOURCE_ROOT = root || LMV_RESOURCE_ROOT;
+    };
+
+
+    avp.initLoadContext = function(inputObj) {
+
+        inputObj = inputObj || {};
+
+        inputObj.auth = auth;
+        inputObj.viewing_url = VIEWING_URL;
+        inputObj.oss_url = OSS_URL;
+
+        if (!inputObj.headers)
+            inputObj.headers = {};
+
+        for (var p in av.HTTP_REQUEST_HEADERS) {
+            inputObj.headers[p] = av.HTTP_REQUEST_HEADERS[p];
+        }
+
+        return inputObj;
+    };
+
+    avp.refreshCookie = function(token, onSuccess, onError) {
+
+        var xhr = new XMLHttpRequest();
+        xhr.onload = onSuccess;
+        xhr.onerror = onError;
+        xhr.ontimeout = onError;
+
+    // We support two set token end points, the native VS end point and the wrapped apigee end point.
+        if (avp.env.indexOf('Autodesk') === 0) {
+            // This really sucks, as Apigee end points use different naming pattern than viewing service.
+            var url = avp.EnvironmentConfigurations[avp.env].ROOT;
+
+            xhr.open("POST", url + "/utility/v1/settoken", true);
+            xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+            xhr.withCredentials = true;
+
+            xhr.send("access-token=" + token);
+
+            // Here we control whether to go through IE 11's authentication code path or not.
+            if (_isIE11) {
+                avp.accessToken = token;
+            }
+        }
+        else {
+            var token =
+            {
+                "oauth": {
+                    "token": token
+                }
+            };
+
+            // console.log("auth token : " + JSON.stringify(token));
+
+            xhr.open("POST", VIEWING_URL + "/token", true);
+            xhr.setRequestHeader("Content-Type", "application/json");
+            xhr.withCredentials = true;
+
+            xhr.send(JSON.stringify(token));
+        }
+
+    };
+
+    // Refresh the token in request header, in case that the third party cookie is disabled
+    avp.refreshRequestHeader = function(token) {
+
+        av.HTTP_REQUEST_HEADERS["Authorization"] = "Bearer " + token;
+
+    };
+
+    avp.refreshToken = function(token, onSuccess, onError) {
+
+        // Store the token, it will be used when third-party cookies are disabled
+        avp.token.accessToken = token;
+
+        // At the beginning, try to store the token in cookie
+        if (LMV_THIRD_PARTY_COOKIE === undefined) {
+            avp.refreshCookie(token, onSuccess, onError);
+        } else {
+            doTokenRefresh();
+        }
+
+        // if third-party cookies are enabled in browser, then put token in cookie
+        // if not, put token into request header
+        function doTokenRefresh() {
+
+            if (LMV_THIRD_PARTY_COOKIE) {
+
+                avp.refreshCookie(token, onSuccess, onError);
+
+            } else {
+
+                avp.refreshRequestHeader(token);
+                onSuccess();
+
+            }
+        }
+
+    };
+
+    avp.initializeAuth = function (onSuccessCallback, options) {
+
+        var shouldInitializeAuth = options ? options.shouldInitializeAuth : undefined;
+        if (shouldInitializeAuth === undefined) {
+            var p = avp.getParameterByName("auth");
+            shouldInitializeAuth = (p.toLowerCase() !== "false");
+        }
+
+        //Skip Auth in case we are serving the viewer locally
+        if (avp.env == "Local" || !shouldInitializeAuth) {
+            setTimeout(onSuccessCallback, 0);
+            auth = false;
+            return auth;
+        }
+
+        // Keep this to make existing client code happy.
+        auth = true;
+
+        var accessToken;
+        if (options &amp;&amp; options.getAccessToken) {
+            function onGetAccessToken(token /* access token value. */, expire /* expire time, in seconds. */) {
+                accessToken = token;
+                avp.refreshToken(accessToken, avp.token.tokenRefreshInterval ? null /* If this is a token refresh call,
+                 don't invoke the onSuccessCallback which will loadDocument and so on. */
+                    : onSuccessCallback);
+                var interval = expire - 60; // Refresh 1 minute before token expire.
+                if (interval &lt;= 0) {
+                    // We can't get a precise upper bound if the token is such a short lived one (expire in a minute),
+                    // so just use the original one.
+                    interval = expire;
+                }
+                avp.token.tokenRefreshInterval = interval * 1000;
+                setTimeout(function() {options.getAccessToken(onGetAccessToken)}, avp.token.tokenRefreshInterval);
+            }
+            avp.token.getAccessToken = options.getAccessToken;
+
+            accessToken = options.getAccessToken(onGetAccessToken);
+
+            //Backwards compatibility with the old synchronous API
+            if (typeof accessToken == "string" &amp;&amp; accessToken) {
+                avp.refreshToken(accessToken, onSuccessCallback);
+            }
+
+        } else if (options &amp;&amp; options.accessToken) {
+            accessToken = options.accessToken;
+            avp.refreshCookie(accessToken, onSuccessCallback);
+            avp.refreshToken(accessToken);
+        } else {
+            accessToken = avp.getParameterByName("accessToken");
+            if (!accessToken) {
+                accessToken = "9AMaRKBoPCIBy61JmQ8OLLLyRblS";
+                console.log("Warning : no access token is provided. Use built in token : " + accessToken);
+            }
+            avp.refreshToken(accessToken, onSuccessCallback);
+        }
+
+        return auth;
+    };
+
+    avp.initializeLogger = function (options) {
+
+        var loggerConfig = {
+            endpoint: avp.EnvironmentConfigurations[avp.env].LMV.LOGGING,
+            eventCallback: options ? options.eventCallback : undefined
+        };
+        avp.logger = new avp.Logger(loggerConfig);
+
+        // load Autodesk Data Platform client
+        avp.loadDependency("Adp", "https://ase-cdn.autodesk.com/adp/v0.0.2/js/adp-web-analytics-sdk.js", function() {
+            if (typeof (Adp) === 'undefined') {
+                stderr('Autodesk Data Platform SDK not found');
+                return;
+            }
+
+            var adpConfig;
+            switch (LMV_BUILD_TYPE) {
+                case 'Production': adpConfig = AdpConfigs['prod']; break;
+                case 'Staging': adpConfig = AdpConfigs['stg']; break;
+                default: adpConfig = AdpConfigs['dev']; break;
+            }
+            var facets = {
+                product: {
+                    name: 'LMV',
+                    line_name: 'LMV',
+                    key: adpConfig.CLIENT_ID,
+                    id: adpConfig.CLIENT_KEY,
+                    build_id: LMV_VIEWER_VERSION + '.' + LMV_VIEWER_PATCH,
+                    build_tag: avp.env
+                }
+            };
+            var config = {
+                server: adpConfig.ENDPOINT,
+                enable_geo_data: false,
+                enable_browser_data: true,
+                enable_session_messages: true
+            };
+            avp.logger.adp = new Adp(facets, config);
+        });
+    };
+
+    avp.initializeProtein = function () {
+
+        //For local work, don't redirect texture requests to the CDN,
+        //because local ones will load much faster, presumably.
+        if (ENABLE_DEBUG &amp;&amp; avp.env == "Local" &amp;&amp; !auth /* when auth is true, the viewer is operating under
+        local mode but connect to remote server to get data. */)
+            return;
+
+        // In offline mode, viewer will get the texture from the locally cached SVF data sets, instead pinging texture
+        // CDN.
+        // TODO: this will break when translators stop including Protein into SVF.
+        if (avp.offline) {
+            return;
+        }
+
+        var xhr1 = new XMLHttpRequest();
+        xhr1.open("GET", "https://raas-assets.autodesk.com/StaticContent/BaseAddress?family=protein", true);
+        xhr1.responseType = "json";
+
+        xhr1.onload = function (e) {
+            var res = xhr1.response.url;
+            if (res &amp;&amp; res.length) {
+                res = res.replace("http://", "https://");
+                PROTEIN_ROOT = res + "/";
+                stderr("Protein root is: " + PROTEIN_ROOT);
+            }
+        };
+
+        xhr1.send();
+
+        var xhr2 = new XMLHttpRequest();
+        xhr2.open("GET", "https://raas-assets.autodesk.com/StaticContent/BaseAddress?family=prism", true);
+        xhr2.responseType = "json";
+
+        xhr2.onload = function (e) {
+            var res = xhr2.response.url;
+            if (res &amp;&amp; res.length) {
+                res = res.replace("http://", "https://");
+                PRISM_ROOT = res + "/";
+                stderr("Prism root is: " + PRISM_ROOT);
+            }
+        };
+
+        //xhr.onerror = ;
+        //xhr.ontimeout = ;
+
+        xhr2.send();
+    };
+
+    avp.getAuthObject = function () {
+        return auth;
+    };
+
+// Returns the query parameter value from window url
+    avp.getParameterByName = function (name) {
+        return avp.getParameterByNameFromPath(name, window.location.href);
+    };
+
+// return value of parameter from a url
+    avp.getParameterByNameFromPath = function (name, url) {
+        name = name.replace(/[\[]/, "\\\[").replace(/[\]]/, "\\\]");
+        var regexS = "[\\?&amp;]" + name + "=([^&amp;#]*)";
+        var regex = new RegExp(regexS);
+        var results = regex.exec(url);
+        if (results == null)
+            return "";
+        else
+            return decodeURIComponent(results[1].replace(/\+/g, " "));
+    };
+
+    avp.urlIsApiViewingOrDev = function(url) {
+                // Dev API endpoints
+        return  url.indexOf('developer.api.autodesk.com') !== -1 ||
+                url.indexOf('developer-stg.api.autodesk.com') !== -1 ||
+                url.indexOf('developer-dev.api.autodesk.com') !== -1 ||
+                // Viewing API endpoints
+                url.indexOf('viewing.api.autodesk.com') !== -1 ||
+                url.indexOf('viewing-staging.api.autodesk.com') !== -1 ||
+                url.indexOf('viewing-dev.api.autodesk.com') !== -1;
+    };
+
+// Return a default document URN for demo purpose.
+    avp.getDemoDocumentURN = function () {
+        var documentId;
+
+        switch (avp.env) {
+            case "Development" :
+                //documentId = "urn:dXJuOmFkc2sub2JqZWN0czpvcy5vYmplY3Q6Y29sdW1idXMvTWljaGFlbF9IYW5kLV8tYjE0MDk3ODQxNzcwMDZSQ0Nhci5kd2Y";
+                documentId = "urn:dXJuOmFkc2suYTM2MGJldGFkZXY6ZnMuZmlsZTplbnRlcnByaXNlLmxtdnRlc3QuRFM1YTczMFFUYmYwMDIyZDA3NTFhYmE5MjZlZDZkMjJlZDY0P3ZlcnNpb249MQ==";
+                break;
+            case "Staging" :
+                documentId = "urn:dXJuOmFkc2suczM6ZGVyaXZlZC5maWxlOlZpZXdpbmdTZXJ2aWNlVGVzdEFwcC91c2Vycy9NaWNoYWVsX0hhbicvTU0zNTAwQXNzZW1ibHkuZHdm";
+                break;
+            case "Production" :
+                documentId = "FIXME";
+                break;
+            default:
+                //documentId = "urn:dXJuOmFkc2suczM6ZGVyaXZlZC5maWxlOlZpZXdpbmdTZXJ2aWNlVGVzdEFwcC91c2Vycy9NaWNoYWVsX0hhbmAvUkMgQ2FyLmR3Zg"
+                documentId = "https://lmv.rocks/viewer/data/gears/output/bubble.json";
+        }
+
+        return documentId;
+    };
+
+    avp.setLanguage = function (language, callback) {
+
+        var options = {
+            lng: language,
+            resGetPath: 'res/locales/__lng__/__ns__.json',
+            ns: {
+                namespaces: ['allstrings'],
+                defaultNs: 'allstrings'
+            },
+            fallbackLng: "en",
+            debug: false
+        };
+
+        LOCALIZATION_REL_PATH = "res/locales/" + language + "/";
+        Autodesk.Viewing.i18n.init(options, function (t) {
+            Autodesk.Viewing.i18n.clearDebugLocString(); //Calls localize as well
+            if (callback) {
+                callback();
+            }
+        });
+    };
+
+    avp.initializeLocalization = function (options) {
+        // Initialize language for localization. The corresponding string files
+        // will be downloaded.
+        var language = (options &amp;&amp; options.language) || navigator.language;
+
+        // use iso scheme (ab/ab-XY)
+        var tags = language.split('-');
+        language = tags.length > 1 ? tags[0].toLowerCase() + '-' + tags[1].toUpperCase() : tags[0].toLowerCase();
+ 
+        // check supported language tags and subtags
+        var supportedTags = ["cs", "de", "en", "es", "fr", "it", "ja", "ko", "pl", "pt-BR", "ru", "tr", "zh-HANS", "zh-HANT"];
+        if (supportedTags.indexOf(language) === -1) {
+            if (language.indexOf("zh-CN") > -1) language = "zh-HANS";
+            else if (language.indexOf("zh-TW") > -1) language = "zh-HANT";
+            else if (tags.length > 1 &amp;&amp; supportedTags.indexOf(tags[0]) > -1) language = tags[0];
+            else language = "en";
+        }
+
+        // Uncomment below to default to english
+        //language = "en";
+        avp.setLanguage(language);
+    };
+
+    avp.initializeUserInfo = function (options) {
+        if (!options || !options.userInfo) return;
+        avp.setUserName(options.userInfo.name);
+        if (options.comment2Token) {
+            avp.comment2Token = options.comment2Token;
+        }
+    };
+
+
+// TODO:  This is here for now, until we find a better place for it.
+//
+    /**
+     * Returns the first source url found containing the given script name.
+     * @private
+     *
+     * @param {string} scriptName
+     * @returns {HTMLScriptElement} The script element whose source location matches the input parameter
+     */
+    avp.getScript = function (scriptName) {
+        scriptName = scriptName.toLowerCase();
+        var scripts = document.getElementsByTagName('SCRIPT');
+        if (scripts &amp;&amp; scripts.length > 0) {
+            for (var i = 0; i &lt; scripts.length; ++i) {
+                if (scripts[i].src &amp;&amp; scripts[i].src.toLowerCase().indexOf(scriptName) !== -1) {
+                    return scripts[i];
+                }
+            }
+        }
+        return null;
+    };
+
+    /**
+     * Returns the full url of a resource with version.  The version will be determined from the LMV_VIEWER_VERSION variable.
+     * @private
+     *
+     * @param {string} resourceRelativePath - the path of the resource relative to LMV_RESOURCE_ROOT.
+     * @returns {string} - the full resource path.
+     */
+    avp.getResourceUrl = function (resourceRelativePath) {
+        var version = LMV_RESOURCE_VERSION;
+        return LMV_RESOURCE_ROOT + resourceRelativePath + (version ? ('?v=' + version) : '');
+    };
+
+    /**
+     * Loads a script (e.g. an external library JS) and calls the callback once loaded.
+     * Used for delayed loading of required libraries. Accepts both relative and absolute URLs.
+     */
+    avp.loadDependency = function(libNamespace, libName, callback) {
+        if (typeof window[libNamespace] == "undefined") {
+            var s = document.createElement("SCRIPT");
+            s.src = libName.indexOf('://') > 0 ? libName : avp.getResourceUrl(libName);
+            document.head.appendChild(s);
+            if (callback)
+                s.onload = callback;
+        }
+        else if (callback)
+            callback();
+    };
+
+
+    /**
+     * This is the Initializer class that initializes the viewer runtime, including:
+     *
+     *  - End points of cloud services the viewer uses, like viewing service and search service.
+     *  - Authentication and authorization cookie settings on the client side.
+     *  - Misc runtime environment variables and viewer configurations parameters.
+     *
+     *  @constructor
+     *  @param {object} options - The options object contains configuration parameters used to do initializations. If no
+     *                            access token or authentication callback is provided, the Initializer will fall back
+     *                            on an access token provided in the URL query string, or a previous access token stored in
+     *                            the cookie cache, if available.
+     *  @param {string} [options.env] - Can be "Development", "Staging" or "Production", for viewers running without PAAS
+     *                                  endpoints. Can be "AutodeskDevelopment", "AutodeskStaging", or "AutodeskProduction"
+     *                                  for viewers running with PAAS endpoints.
+     *  @param {function} [options.getAccessToken] - An function that provides an access token asynchronously. The function signature
+     *                                               is getAccessToken(onSuccess), where onSuccess is a callback that getAccessToken function
+     *                                               should invoke when a token is granted, with the token being the first input parameter for the
+     *                                               onSuccess function, and the token expire time (in seconds) being the second input parameter for the
+     *                                               function. Viewer relies on both getAccessToken and the expire time to automatically renew token, so
+     *                                               it is critical that getAccessToken must be implemented as described here.
+     *
+     *  @param {string} [options.accessToken] - An access token
+     *  @param {string} [options.webGLHelpLink] - A link to a help page on webGL if it's disabled.
+     *  @param {string} [options.language] - Preferred language code as defined in RFC 4646, such as "en", "de", "fr", etc.
+     *  If no language is set, viewer will pick it up from the browser. If language is not as defined in RFC,
+     *  viewer will fall back to "en" but the behavior is undefined.
+     *
+     *  @param {function} callback - A method the client executes when initialization is finished.
+     *
+     *  @example
+     *   var options = {
+     *      env: "Production",
+     *      language: "en",
+     *      webGLHelpLink: "http://my.webgl.help.link",
+     *      getAccessToken: function(onSuccess) {
+     *          var accessToken, expire;
+     *          // Code to retrieve and assign token value to
+     *          // accessToken and expire time in seconds.
+     *          onSuccess(accessToken, expire);
+     *      }
+     *   };
+     *   var callback = function() {
+     *      alert("initialization complete");
+     *   };
+     *   Autodesk.Viewing.Initializer(options, callback);
+     */
+    Autodesk.Viewing.Initializer = function (options, callback) {
+
+        avp.WEBGL_HELP_LINK = options ? options.webGLHelpLink : null;
+        avp.initializeEnvironmentVariable(options);
+        avp.initializeServiceEndPoints(options);
+        avp.initializeProtein();
+
+        function init() {
+
+            //Temporarily silence THREE.warn due to new builds of Chrome producing oodles of shader compile warnings.
+            THREE.warn = function() { stderr.apply(stderr, arguments);};
+
+            init_three_dds_loader();
+            avp.initializeLogger(options);
+            avp.initializeAuth(callback, options);
+            avp.initializeLocalization(options);
+            avp.initializeUserInfo(options);
+        }
+
+        //Kick off a request for the web worker script, so it loads in parallel with three.js
+        avp.initWorkerScript();
+
+        //Load three.js then continue initialization
+        avp.loadDependency("THREE", "three.min.js", init);
+    };
+
+})();
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Autodesk.Viewing.ApplicationScreenModeDelegate.html">ApplicationScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.Comments.CommentsExtension.html">CommentsExtension</a></li><li><a href="Autodesk.Viewing.Document.html">Document</a></li><li><a href="Autodesk.Viewing.Extension.html">Extension</a></li><li><a href="Autodesk.Viewing.Extensions.FirstPerson.FirstPersonExtension.html">FirstPersonExtension</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.CreateCircle.html">CreateCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.DeleteCircle.html">DeleteCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditAction.html">EditAction</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditMode.html">EditMode</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditModeCircle.html">EditModeCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.Markup.html">Markup</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupRectangle.html">MarkupRectangle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore.html">MarkupsCore</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.SetCircle.html">SetCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Measure.MeasureExtension.html">MeasureExtension</a></li><li><a href="Autodesk.Viewing.FileLoader.html">FileLoader</a></li><li><a href="Autodesk.Viewing.GuiViewer3D.html">GuiViewer3D</a></li><li><a href="Autodesk.Viewing.HotkeyManager.html">HotkeyManager</a></li><li><a href="Autodesk.Viewing.Initializer.html">Initializer</a></li><li><a href="Autodesk.Viewing.Model.html">Model</a></li><li><a href="Autodesk.Viewing.NullScreenModeDelegate.html">NullScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.Private.Preferences.html">Preferences</a></li><li><a href="Autodesk.Viewing.Private.ViewerState.html">ViewerState</a></li><li><a href="Autodesk.Viewing.ScreenModeDelegate.html">ScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.ToolController.html">ToolController</a></li><li><a href="Autodesk.Viewing.ToolInterface.html">ToolInterface</a></li><li><a href="Autodesk.Viewing.UI.Button.html">Button</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html">ComboButton</a></li><li><a href="Autodesk.Viewing.UI.Control.html">Control</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html">ControlGroup</a></li><li><a href="Autodesk.Viewing.UI.DockingPanel.html">DockingPanel</a></li><li><a href="Autodesk.Viewing.UI.ObjectContextMenu.html">ObjectContextMenu</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html">RadioButtonGroup</a></li><li><a href="Autodesk.Viewing.UI.SettingsPanel.html">SettingsPanel</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html">ToolBar</a></li><li><a href="Autodesk.Viewing.Viewer3D.html">Viewer3D</a></li><li><a href="Autodesk.Viewing.ViewingApplication.html">ViewingApplication</a></li><li><a href="Autodesk.Viewing.ViewingUtilities.html">ViewingUtilities</a></li></ul><h3>Events</h3><ul><li><a href="Autodesk.Viewing.UI.Button.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Button.html#event:STATE_CHANGED">STATE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Button.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:STATE_CHANGED">STATE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Control.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Control.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:ACTIVE_BUTTON_CHANGED">ACTIVE_BUTTON_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li></ul><h3>Tutorials</h3><ul><li>feature_markup</li></ul>
+</nav>
+
+<br clear="both">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.3.0-alpha11</a> on Fri Apr 15 2016 17:19:51 GMT+0800 (CST)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

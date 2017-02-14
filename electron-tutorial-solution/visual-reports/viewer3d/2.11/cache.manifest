@@ -1,0 +1,9 @@
+CACHE MANIFEST
+# this file's MIME-type is 'text/cache-manifest'
+three.min.js
+res/locales/en/allstrings.json
+res/environments/SharpHighlights_irr.logluv.dds
+res/environments/SharpHighlights_mipdrop.logluv.dds
+
+NETWORK:
+*

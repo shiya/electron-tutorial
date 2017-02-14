@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Viewer API Demo : @buildnum@</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <meta charset="utf-8">
+
+    <link rel="stylesheet" href="style.css" type="text/css">
+
+    <script src="viewer3D.min.js"></script>
+    <script src="jquery-2.0.3.min.js"></script>
+
+    <style>
+        .toolbar-example-red {
+            background:red;
+        }
+        .toolbar-example-blue {
+            background:blue;
+        }
+        .toolbar-example-green {
+            background:green;
+        }
+        #toolbar-example-yellow {
+            background:yellow;
+            border: 2px  solid black;
+            border-right: 0px;;
+        }
+        #toolbar-example-pink {
+            background:darkmagenta;
+            border: 2px solid black;
+        }
+        .toolbar-example-black {
+            background:black;
+            border: 2px solid red;
+        }
+
+        .toolbar-example-grey {
+            background:#808080;
+        }
+    </style>
+
+    <script>
+        var viewer3d = null;
+
+        function initialize() {
+            Autodesk.Viewing.Private.initializeEnvironmentVariable();
+            Autodesk.Viewing.Private.initializeServiceEndPoints();
+            Autodesk.Viewing.Private.initializeAuth();
+
+            viewer3d = loadDocument('viewer', 'urn:dXJuOmFkc2subml0cm9nZW46ZnMuZmlsZToxNDE5NGQyNTYxOWE0NTdmOWQzN2ZlMDk5YTMyNjc2MQ==', Autodesk.Viewing.Viewer3D, {'type':'geometry', 'role':'3d'});
+
+            createToolbar( $('#toolbar') );
+        }
+
+        function loadDocument(containerId, documentId, viewerClass, geometryFilter) {
+            // Create and initialize the given viewer in the given container.
+            //
+            var viewerContainer = document.getElementById(containerId);
+            var viewer = new viewerClass(viewerContainer, {});
+            viewer.initialize();
+
+            // Load the given document.  When loaded, find the requested geometry type
+            // and load its viewable into the viewer.
+            //
+            Autodesk.Viewing.Document.load(documentId, function(document)     // onLoadCallback
+                {
+                    var rootItem = document.getRootItem();
+                    var geometryItems = Autodesk.Viewing.Document.getSubItemsWithProperties(rootItem, geometryFilter, true);
+
+                    // Load the first geometry.
+                    //
+                    viewer.load(document.getViewablePath(geometryItems[0]));
+                },
+                function(errorCode, errorMsg, errors)  // onErrorCallback
+                {
+
+                }
+            );
+            return viewer;
+        }
+
+        function createToolbar( container ) {
+
+            //
+            // Creates a toolbar with buttons with custom images attach to them.
+            //
+
+            var toolbar = new Autodesk.Viewing.UI.ToolBar('adsk-toolbar');
+            var controlGroup = new Autodesk.Viewing.UI.ControlGroup('adsk-control-group');
+
+            var vHide = true;
+            //var subMenuId = "generalTool";
+            //var panelToolSubMenu = toolbar.addSubToolbar( subMenuId, false );
+
+            var button1 = new Autodesk.Viewing.UI.Button('adsk-example-button-red');
+            button1.onClick = function(e) {
+                if (vHide)
+                    $('#viewer').css({'display':'none'});
+                else
+                    $('#viewer').css({'display':'block'});
+                vHide = !vHide;
+            };
+            button1.addClass('toolbar-example-red');
+            button1.setToolTip('Toggle Viewer Visibility');
+            controlGroup.addControl(button1);
+
+            // Set the image on the tool button.
+            //var imagePath = LMV_RESOURCE_ROOT + "icons/focus_icon.png";
+            //panelToolSubMenu.setToolImage( button1.id, imagePath );
+
+            var viewerToolbarCreated = false;
+            var button2 = new Autodesk.Viewing.UI.Button('adsk-example-button-blue');
+            button2.onClick = function(e) {
+                $('#viewer').css({'display':'block'});
+                vHide = true;
+                if (!viewerToolbarCreated && viewer3d )
+                    createViewerToolbar( viewer3d.container );
+                viewerToolbarCreated = true;
+            };
+            button2.addClass('toolbar-example-blue');
+            button2.setToolTip('Add ToolBar to Viewer');
+            controlGroup.addControl(button2);
+
+            // Set the image on the tool button.
+            //imagePath = LMV_RESOURCE_ROOT + "icons/explode_icon.png";
+            //panelToolSubMenu.setToolImage( button2.id, imagePath );
+
+            var exampleToolbarCreated = false;
+            var button3 = new Autodesk.Viewing.UI.Button('adsk-example-button-green');
+            button3.onClick = function(e) {
+                $('#viewer').css({'display':'block'});
+                vHide = true;
+                if (!exampleToolbarCreated)
+                    createExampleToolbar(  $('#example')  );
+                exampleToolbarCreated = true;
+            };
+            button3.addClass('toolbar-example-green');
+            button3.setToolTip('Add ToolBar to Example');
+            controlGroup.addControl(button3);
+
+            toolbar.addControl(controlGroup);
+
+            container[0].appendChild(toolbar.container);
+
+            // Set the image on the tool button.
+            //imagePath = LMV_RESOURCE_ROOT + "icons/thumbnail_view_icon.png";
+            //panelToolSubMenu.setToolImage( button3.id, imagePath );
+        }
+
+        function createViewerToolbar( container ) {
+
+            //
+            // Creates a toolbar with buttons with custom text on them.
+            //
+            var toolbar = new Autodesk.Viewing.UI.Toolbar( container );
+
+            var subMenuId  = "backgroundColors";
+            var bgColorTool = toolbar.addSubToolbar( subMenuId, true ); // this is acts like radiobutton
+
+            var buttonYellow = Autodesk.Viewing.UI.Toolbar.createMenuButton( "toolbar-example-yellow",  "Change Viewer Background", function(e) {
+                viewer3d.setBackgroundColor(255, 255, 0, 155, 155, 0);
+                bgColorTool.select( buttonYellow.id );
+            });
+            toolbar.addToSubToolbar( subMenuId, buttonYellow );
+            bgColorTool.setToolText( buttonYellow.id, "Yellow");
+
+            var buttonPink = Autodesk.Viewing.UI.Toolbar.createMenuButton( "toolbar-example-pink",  "Change Viewer Background", function(e) {
+                viewer3d.setBackgroundColor(255, 0, 255, 155, 0, 155);
+                bgColorTool.select( buttonPink.id );
+            });
+            toolbar.addToSubToolbar( subMenuId, buttonPink );
+            bgColorTool.setToolText( buttonPink.id, "Pink");
+
+            // Since initially, the background has a different color, then deselect all buttons.
+            bgColorTool.deselectAll();
+        }
+
+        function createExampleToolbar( container ) {
+            var AVU = Autodesk.Viewing.UI;
+            var toolbar = new AVU.ToolBar('adsk-example-toolbar');
+
+            //var mainToolsId = "mainTools";
+            //var mainToolbar = toolbar.addSubToolbar( mainToolsId, false );
+            var mainControlGroup = new AVU.ControlGroup('adsk-main-control-group');
+
+            var buttonControlGroup = new AVU.ControlGroup('adsk-button-control-group');
+            buttonControlGroup.setVisible(false);
+            var buttonIDCounter = 0;
+
+            var buttonAdd = new AVU.Button('adsk-example-button-add');
+            buttonAdd.onClick = function(e) {
+                if (buttonIDCounter === 0) {
+                    buttonControlGroup.setVisible(true);
+                }
+
+                var button = new AVU.Button("toolbar-example-black" + buttonIDCounter);
+                buttonIDCounter++;
+                button.addClass('toolbar-example-black');
+
+                buttonControlGroup.addControl(button);
+            };
+            buttonAdd.addClass('toolbar-example-green');
+            buttonAdd.setToolTip('Add Button');
+            mainControlGroup.addControl(buttonAdd);
+
+            var buttonRemove = new AVU.Button('adsk-example-button-remove');
+            buttonRemove.onClick = function(e) {
+                if (buttonIDCounter === 0) {
+                    return;
+                }
+
+                buttonIDCounter--;
+                buttonControlGroup.removeControl("toolbar-example-black" + buttonIDCounter);
+
+                if (buttonIDCounter === 0) {
+                    buttonControlGroup.setVisible(false);
+                }
+            };
+            buttonRemove.addClass('toolbar-example-red');
+            buttonRemove.setToolTip('Remove Button');
+            mainControlGroup.addControl(buttonRemove);
+
+            var buttonRemoveAll = new AVU.Button('adsk-example-button-remove-all');
+            buttonRemoveAll.onClick = function(e) {
+                // Remove last added button.
+                while (buttonIDCounter > 0) {
+                    buttonIDCounter--;
+                    buttonControlGroup.removeControl("toolbar-example-black" + buttonIDCounter);
+                }
+
+                buttonControlGroup.setVisible(false);
+            };
+            buttonRemoveAll.addClass('toolbar-example-grey');
+            buttonRemoveAll.setToolTip('Remove All Buttons');
+            mainControlGroup.addControl(buttonRemoveAll);
+
+            toolbar.addControl(mainControlGroup);
+            toolbar.addControl(buttonControlGroup);
+
+            container[0].appendChild(toolbar.container);
+        }
+    </script>
+</head>
+
+<body onload="initialize();">
+<div id="viewer" style="position:absolute; left:20px; top:20px; width:1200px; height:400px; border-color: black; overflow-y: scroll; overflow-x:auto; border-style:solid; border-width: 1px; color:red">
+</div>
+<div id="toolbar" style="position:absolute; left:20px; top:421px; width:1200px; height:100px; border-color: black; overflow-y: scroll; overflow-x:auto; border-style:solid; border-width: 1px; color:blue">
+    <ul>
+        <li>Click on a red button to toggle viewer's visibility.</li>
+        <li>Click on a blue button to add a toolbar to the viewer.</li>
+        <li>Click on a green button to add a toolbar to the Example.</li>
+    </ul>
+</div>
+<div id="example" style="position:absolute; left:20px; top:522px; width:1200px; height:100px; border-color: black; overflow-y: scroll; overflow-x:auto; border-style:solid; border-width: 1px; color:green">EXAMPLE
+<ul>
+    <li>Click on a green button add new button to the toolbar. </li>
+    <li>Click on a red button to remove a recently added button from the toolbar.</li>
+    <li>Click on a grey button to remove all added buttons from the toolbar.</li>
+</ul>
+</div>
+</body>
+
+</html>

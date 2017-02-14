@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: extensions/Markup/core/edit-modes/EditMode.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: extensions/Markup/core/edit-modes/EditMode.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>(function(){ 'use strict';
+
+    var namespace = Autodesk.Viewing.Extensions.Markups.Core;
+    var namespaceUtils = Autodesk.Viewing.Extensions.Markups.Core.Utils;
+
+    /**
+     * @class
+     * Base class for all EditModes.&lt;br>
+     * An EditMode is responsible for handling user input to create and edit a
+     * [Markup]{@link Autodesk.Viewing.Extensions.Markups.Core.Markup}.
+     *
+     * Any class extending Markup should contain at least the following methods:
+     * - deleteMarkup()
+     * - onMouseDown()
+     * - onMouseMove()
+     *
+     * A good reference is the Circle EditMode implementation available in
+     * [EditModeCircle.js]{@link Autodesk.Viewing.Extensions.Markups.Core.EditModeCircle}.
+     *
+     * @tutorial feature_markup
+     * @constructor
+     * @memberof Autodesk.Viewing.Extensions.Markups.Core
+     *
+     * @param {Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore} editor - Markups extension.
+     * @param {String} type - An identifier for the EditMode type. Not to be confused by the Markup's id.
+     * @param {Array} styleAttributes - Attributes for customization.
+     * @constructor
+     */
+    function EditMode(editor, type, styleAttributes) {
+
+        this.editor = editor;
+        this.viewer = editor.viewer;
+        this.type = type;
+        this.selectedMarkup = null;
+        this.dragging = false;
+        this.draggingAnnotationIniPosition = null;
+        this.draggingMouseIniPosition = new THREE.Vector2();
+        this.initialX = 0;
+        this.initialY = 0;
+        this.minSize = 9; // In pixels
+        this.creating = false;
+        this.size = {x: 0, y: 0};
+        this.style = namespaceUtils.createStyle(styleAttributes, this.editor);
+        this.style = namespaceUtils.copyStyle(editor.getDefaultStyle(), this.style);
+
+        this.CREATION_METHOD_DRAG = 'CREATION_METHOD_DRAG';
+        this.CREATION_METHOD_CLICK = 'CREATION_METHOD_CLICK';
+        this.CREATION_METHOD_CLICKS = 'CREATION_METHOD_CLICKS';
+        this.creationMethod = this.CREATION_METHOD_DRAG;
+
+        namespaceUtils.addTraitEventDispatcher(this);
+    }
+
+    // Event types //
+    namespace.EVENT_EDITMODE_CREATION_BEGIN = "EVENT_EDITMODE_CREATION_BEGIN";
+    namespace.EVENT_EDITMODE_CREATION_END = "EVENT_EDITMODE_CREATION_END";
+    namespace.EVENT_MARKUP_DESELECT = "EVENT_MARKUP_DESELECT";
+
+    var proto = EditMode.prototype;
+
+    proto.destroy = function() {
+
+        this.unselect();
+        namespaceUtils.removeTraitEventDispatcher(this);
+    };
+
+    proto.unselect = function() {
+
+        var fireEv = false;
+        var selectedMarkup = this.selectedMarkup;
+        if (selectedMarkup) {
+            selectedMarkup.unselect();
+            this.selectedMarkup = null;
+            fireEv = true;
+        }
+
+        this.editor.editFrame.setMarkup(null);
+
+        if (fireEv) {
+            this.fireEvent({ type: namespace.EVENT_MARKUP_DESELECT });
+        }
+    };
+
+    proto.creationBegin = function() {
+
+        if (this.creating) {
+            return;
+        }
+
+        this.creating = true;
+        this.fireEvent({ type: namespace.EVENT_EDITMODE_CREATION_BEGIN });
+    };
+
+    proto.creationEnd = function() {
+
+        if(!this.creating) {
+            return;
+        }
+
+        if (this.creationMethod !== this.CREATION_METHOD_CLICK) {
+
+            if (this.selectedMarkup &amp;&amp; !this.isMinSizeValid()) {
+
+                this.editor.cancelActionGroup();
+                this.selectedMarkup = null;
+            } else {
+
+                if (this.creationMethod === this.CREATION_METHOD_DRAG) {
+                    this.finishDragging();
+                }
+
+                if (this.selectedMarkup) {
+
+                    // Opened on mouse down.
+                    this.editor.closeActionGroup();
+                    this.unselect();
+                }
+            }
+        }
+
+        this.creating = false;
+        this.fireEvent({ type: namespace.EVENT_EDITMODE_CREATION_END });
+    };
+
+    proto.creationCancel = function() {
+
+        this.creationEnd();
+        this.editor.cancelActionGroup();
+        this.selectedMarkup = null; // No need to call unselect
+    };
+
+    /**
+     *
+     * @param style
+     */
+    proto.setStyle = function(style) {
+
+        this.style = style;
+
+        var selectedMarkup = this.selectedMarkup;
+        if(!selectedMarkup) {
+            return;
+        }
+
+        var setStyle = new namespace.SetStyle(this.editor, selectedMarkup, style);
+        setStyle.execute();
+    };
+
+    proto.getStyle = function() {
+
+        return this.style;
+    };
+
+    proto.setSelection = function(markup) {
+
+        if (this.selectedMarkup !== markup) {
+            this.unselect();
+            markup &amp;&amp; markup.select();
+        }
+
+        this.selectedMarkup = markup;
+
+        var editor = this.editor;
+        markup &amp;&amp; editor.bringToFront(markup);
+
+        if(!this.creating) {
+            editor.editFrame.setMarkup(markup);
+        }
+    };
+
+    proto.getSelection = function() {
+
+        return this.selectedMarkup;
+    };
+
+    /**
+     *
+     * @param [markup] If provided deletes markup (has to have same type that the edit mode), otherwise deletes selected one.
+     * @param [cantUndo] If true to not add deletion to undo history.
+     * @returns {boolean}
+     */
+    proto.deleteMarkup = function (markup, cantUndo) {
+
+        return false;
+    };
+
+    /**
+     * Used by classes extending EditMode to validate the minimum size (in screen coordinates) of the markup.
+     * See minSize attribute
+     * @return {Boolean} Whether current size is valid for creating the markup
+     * @private
+     */
+    proto.isMinSizeValid = function() {
+
+        if (this.minSize !== 0) {
+
+            var tmp = this.editor.sizeFromMarkupsToClient(this.size.x, this.size.y);
+            return (tmp.x*tmp.x + tmp.y*tmp.y) >= (this.minSize * this.minSize);
+
+        }
+        return true;
+    };
+
+    /**
+     * @private
+     */
+    proto.startDragging = function() {
+
+        var selectedMarkup = this.selectedMarkup;
+        var mousePosition = this.editor.getMousePosition();
+
+        if (selectedMarkup) {
+            this.dragging = true;
+            this.draggingAnnotationIniPosition = selectedMarkup.getClientPosition();
+            this.draggingMouseIniPosition.set(mousePosition.x, mousePosition.y);
+        }
+    };
+
+    /**
+     * @private
+     */
+    proto.finishDragging = function() {
+
+        var dragging = this.dragging;
+        var selectedMarkup = this.selectedMarkup;
+
+        this.dragging = false;
+
+        if (selectedMarkup &amp;&amp; dragging) {
+            selectedMarkup.finishDragging();
+        }
+    };
+
+    /**
+     *
+     * @returns {{x: number, y: number}}
+     */
+    proto.getFinalMouseDraggingPosition = function() {
+
+        var editor = this.editor;
+        var bounds = editor.getBounds();
+        var mousePosition = editor.getMousePosition();
+
+        var initialX = this.initialX;
+        var initialY = this.initialY;
+
+        var finalX = Math.min(Math.max(bounds.x, mousePosition.x), bounds.x + bounds.width);
+        var finalY = Math.min(Math.max(bounds.y, mousePosition.y), bounds.y + bounds.height);
+
+        if (finalX == initialX &amp;&amp;
+            finalY == initialY) {
+            finalX++;
+            finalY++;
+        }
+
+        // Make equal x/y when shift is down
+        if (editor.input.makeSameXY) {
+            var dx = Math.abs(finalX - initialX);
+            var dy = Math.abs(finalY - initialY);
+
+            var maxDelta = Math.max(dx, dy);
+
+            // These calculations have the opportunity to go beyond 'bounds'.
+            finalX = initialX + maxDelta * namespaceUtils.sign(finalX - initialX);
+            finalY = initialY + maxDelta * namespaceUtils.sign(finalY - initialY);
+        }
+
+        return { x:finalX, y:finalY };
+    };
+
+    proto.notifyAllowNavigation = function(allows) {
+
+    };
+
+    proto.onMouseMove = function (event) {
+
+    };
+
+    proto.onMouseDown = function () {
+
+    };
+
+    /**
+     * Handler to mouse up events, used to start annotations creation.
+     * It will cancel the creation of a markup if its minSize conditions are not met.
+     *
+     * @param {MouseEvent} event Mouse event.
+     * @private
+     */
+    proto.onMouseUp = function(event) {
+
+        if (this.creationMethod !== this.CREATION_METHOD_DRAG) {
+            return;
+        }
+
+        this.creationEnd();
+    };
+
+    proto.onMouseDoubleClick = function(event) {
+
+        if (this.creationMethod !== this.CREATION_METHOD_CLICKS) {
+            return;
+        }
+
+        this.creationEnd();
+    };
+
+    /**
+     *
+     * @returns {{x: *, y: *}}
+     */
+    proto.getDraggingPosition = function () {
+
+        var mousePosition = this.editor.getMousePosition();
+
+        var dx = mousePosition.x - this.draggingMouseIniPosition.x;
+        var dy = mousePosition.y - this.draggingMouseIniPosition.y;
+
+        return {
+            x: this.draggingAnnotationIniPosition.x + dx,
+            y: this.draggingAnnotationIniPosition.y + dy
+        };
+    };
+
+    /**
+     *
+     * @param x
+     * @param y
+     * @param bounds
+     * @returns {boolean}
+     * @orivate
+     */
+    proto.isInsideBounds = function (x, y, bounds) {
+
+        return x >= bounds.x &amp;&amp; x &lt;= bounds.x + bounds.width &amp;&amp;
+               y >= bounds.y &amp;&amp; y &lt;= bounds.y + bounds.height;
+    };
+
+    namespace.EditMode = EditMode;
+
+})();
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Autodesk.Viewing.ApplicationScreenModeDelegate.html">ApplicationScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.Comments.CommentsExtension.html">CommentsExtension</a></li><li><a href="Autodesk.Viewing.Document.html">Document</a></li><li><a href="Autodesk.Viewing.Extension.html">Extension</a></li><li><a href="Autodesk.Viewing.Extensions.FirstPerson.FirstPersonExtension.html">FirstPersonExtension</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.CreateCircle.html">CreateCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.DeleteCircle.html">DeleteCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditAction.html">EditAction</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditMode.html">EditMode</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditModeCircle.html">EditModeCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.Markup.html">Markup</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupRectangle.html">MarkupRectangle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore.html">MarkupsCore</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.SetCircle.html">SetCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Measure.MeasureExtension.html">MeasureExtension</a></li><li><a href="Autodesk.Viewing.FileLoader.html">FileLoader</a></li><li><a href="Autodesk.Viewing.GuiViewer3D.html">GuiViewer3D</a></li><li><a href="Autodesk.Viewing.HotkeyManager.html">HotkeyManager</a></li><li><a href="Autodesk.Viewing.Initializer.html">Initializer</a></li><li><a href="Autodesk.Viewing.Model.html">Model</a></li><li><a href="Autodesk.Viewing.NullScreenModeDelegate.html">NullScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.Private.Preferences.html">Preferences</a></li><li><a href="Autodesk.Viewing.Private.ViewerState.html">ViewerState</a></li><li><a href="Autodesk.Viewing.ScreenModeDelegate.html">ScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.ToolController.html">ToolController</a></li><li><a href="Autodesk.Viewing.ToolInterface.html">ToolInterface</a></li><li><a href="Autodesk.Viewing.UI.Button.html">Button</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html">ComboButton</a></li><li><a href="Autodesk.Viewing.UI.Control.html">Control</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html">ControlGroup</a></li><li><a href="Autodesk.Viewing.UI.DockingPanel.html">DockingPanel</a></li><li><a href="Autodesk.Viewing.UI.ObjectContextMenu.html">ObjectContextMenu</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html">RadioButtonGroup</a></li><li><a href="Autodesk.Viewing.UI.SettingsPanel.html">SettingsPanel</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html">ToolBar</a></li><li><a href="Autodesk.Viewing.Viewer3D.html">Viewer3D</a></li><li><a href="Autodesk.Viewing.ViewingApplication.html">ViewingApplication</a></li><li><a href="Autodesk.Viewing.ViewingUtilities.html">ViewingUtilities</a></li></ul><h3>Events</h3><ul><li><a href="Autodesk.Viewing.UI.Button.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Button.html#event:STATE_CHANGED">STATE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Button.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:STATE_CHANGED">STATE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Control.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Control.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:ACTIVE_BUTTON_CHANGED">ACTIVE_BUTTON_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li></ul><h3>Tutorials</h3><ul><li>feature_markup</li></ul>
+</nav>
+
+<br clear="both">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.3.0-alpha11</a> on Fri Apr 15 2016 17:19:51 GMT+0800 (CST)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

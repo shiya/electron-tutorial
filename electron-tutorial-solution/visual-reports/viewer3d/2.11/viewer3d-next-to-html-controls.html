@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>3D viewer example with other HTML elements on the page</title>
+    <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1, user-scalable=no" />
+    <meta charset="utf-8">
+
+    <link rel="stylesheet" href="../build/style.css" type="text/css">
+
+    <style>
+        body {
+            margin:0;
+        }
+        body > div {
+            display: flex;
+        }
+
+        .test-padding {
+            left: 10%;
+            top: 50px;
+            width: 80%;
+            height: 400px;
+            position: relative;
+        }
+
+        .element-container {
+            display: flex;
+            flex-direction: column;
+
+            margin: 0 10px;
+        }
+        .element-container >* {
+            margin: 10px 0px;
+        }
+    </style>
+
+    <script src="initialization/enable-debugging-hack.js"></script>
+
+    <script src="../build/three.js"></script>
+    <script src="../build/viewer3D.js"></script>
+
+    <script src="initialization/get-viewer-options-from-query-string.js"></script>
+    <script src="initialization/initialize-viewer.js"></script>
+    <script src="initialization/load-document.js"></script>
+</head>
+
+<body onload="initializeViewer();">
+    <div>
+        <div class="element-container">
+            <select multiple size=11>
+                <option value="1">Test Option 1</option>
+                <option value="2">Test Option 2</option>
+                <option value="3">Test Option 3</option>
+                <option value="4">Test Option 4</option>
+                <option value="5">Test Option 5</option>
+                <option value="6">Test Option 6</option>
+                <option value="7">Test Option 7</option>
+                <option value="8">Test Option 8</option>
+                <option value="9">Test Option 9</option>
+                <option value="10">Test Option 10</option>
+                <option value="11">Test Option 11</option>
+            </select>
+            <textarea placeholder="Textarea"></textarea>
+            <input type="text" placeholder="Text input"/>
+            <input type="number" placeholder="Number input"/>
+            <input type="email" placeholder="Email input"/>
+            <input type="tel" placeholder="Tel input"/>
+            <input type="url" placeholder="URL input"/>
+            <input type="search" placeholder="Search input"/>
+            <input type="range" />
+            <input type="week" />
+            <input type="month" />
+            <input type="time" />
+            <input type="date" />
+            <input type="datetime-local" />
+            <input type="color" />
+        </div>
+        <div id="viewer3d">
+        </div>
+    </div>
+</body>
+
+</html>

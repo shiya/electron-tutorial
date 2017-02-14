@@ -1,0 +1,5 @@
+{
+    "ADSK_API_HOST":     "developer-dev.api.autodesk.com",
+    "API_KEY":    "Override this in a file named local-dev.json",
+    "API_SECRET": "Override this in a file named local-dev.json"
+}

@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Viewer 3D Demo : @buildnum@</title>
+    <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1, user-scalable=no" />
+    <meta charset="utf-8">
+    <link rel="shortcut icon" href="#" />
+    <link rel="stylesheet" href="style.css" type="text/css">
+
+
+    <script src="three.min.js"></script>
+    <script src="viewer3D.js"></script>
+    <script>
+        window.WebVRConfig = {DEFER_INITIALIZATION : true};
+    </script>
+    <script src="https://toji.github.io/webvr-samples/js/third-party/webvr-polyfill.js"></script>
+    <script>
+        InitializeWebVRPolyfill(); 
+    </script>
+
+    <script>
+        var avp = Autodesk.Viewing.Private;
+
+        function getRandomName() {
+            var names = [
+              "Audrey",
+              "Bill",
+              "Cecil",
+              "Donald",
+              "Elmer",
+              "Figaro",
+              "Gus",
+              "Harold",
+              "Ian",
+              "Jiminy",
+              "Kirby",
+              "Leslie",
+              "Mickey",
+              "Norm",
+              "Oswald",
+              "Pete",
+              "Quint",
+              "Roger",
+              "Scrooge",
+              "Tinker",
+              "Ursula",
+              "Victor",
+              "Winnie",
+              "Xerxes",
+              "Yao",
+              "Ziggy"
+            ];
+
+            return names[0 | (Math.random() * names.length)];
+        }
+
+        function getOptionsFromQueryString() {
+            var config3d = {};
+            var canvasConfig = avp.getParameterByName("canvasConfig");
+            if (canvasConfig) {
+                config3d.canvasConfig = JSON.parse(canvasConfig);
+            }
+
+            var docStructureConfig = avp.getParameterByName("docConfig");
+            if (docStructureConfig) {
+                config3d.docStructureConfig = JSON.parse(docStructureConfig);
+            }
+
+            var extensions = config3d['extensions'] || [];
+            //extensions.push('Autodesk.Markers');
+            //extensions.push('Commenting');
+            extensions.push('Autodesk.Billboard');
+            extensions.push('Autodesk.BillboardGui');
+            extensions.push('Autodesk.Fusion360.Animation');
+            extensions.push('Autodesk.Viewing.webVR');
+            //extensions.push('Autodesk.Viewing.RemoteControl');
+            extensions.push('Autodesk.Viewing.Collaboration');
+
+            config3d.extensions = extensions;
+
+            var svfURL = avp.getParameterByName("file");
+            if(!svfURL)
+                svfURL = avp.getParameterByName("svf");
+            var documentId = avp.getParameterByName("document");
+            var initialItemId = avp.getParameterByName("item");
+            var isolateObjectId = avp.getParameterByName("object");
+
+            // optional params passed to the loader. E.g., needed for leaflets
+            var loadOptions = avp.getParameterByName("loadOptions");
+            if (loadOptions) {
+                loadOptions = JSON.parse(loadOptions);
+            }
+
+            return {
+                config3d : config3d,
+                documentId: documentId,
+                svf: svfURL,
+                initialItemId: initialItemId,
+                isolateObjectId: isolateObjectId,
+                useConsolidation: true,
+                userInfo : {
+                    name : getRandomName()
+                },
+                loadOptions:loadOptions
+            };
+        }
+
+        function initializeViewer(options) {
+            var viewerElement = document.getElementById('viewer3d');
+            var viewer = new avp.GuiViewer3D(viewerElement, options.config3d);
+
+            var svfURL = options.svf;
+            var documentId = options.documentId;
+
+            if (svfURL && svfURL.indexOf("urn:") == -1) {
+                // Load local svf file.
+                options.env = "Local";
+                Autodesk.Viewing.Initializer(options, function(){
+                    //Use the start+load way to call start() so that
+                    //the viewer can use optimized initialization order
+                    viewer.start(svfURL, options);
+                });
+            } else if (svfURL && svfURL.indexOf("urn:") == 0) {
+                // Load remote svf file through viewing service.
+                Autodesk.Viewing.Initializer(options, function(){viewer.start();viewer.load(svfURL);});
+            } else if (documentId && documentId.indexOf("urn:") == -1) {
+                // Load local document.
+                viewer.start();
+                loadDocument(viewer, documentId, options.initialItemId);
+            } else {
+                // Load document through viewing service. Use a default document
+                // if the document is not explicitly specified.
+                if(!documentId)
+                    // This is the v8 engine model.
+                    documentId = "urn:dXJuOmFkc2suczM6ZGVyaXZlZC5maWxlOlZpZXdpbmdTZXJ2aWNlVGVzdEFwcC91c2Vycy9NaWNoYWVsX0hhbmAvRW5naW5lLmR3Zg";
+
+                    // This is the lambo model from Jean-Luc!
+                    //documentId = "urn:dXJuOmFkc2suczM6ZGVyaXZlZC5maWxlOlZpZXdpbmdTZXJ2aWNlVGVzdEFwcC91c2Vycy9NaWNoYWVsX0hhbmAvQVZFTlRBRE9SIExQNzAwLmYzZA";
+                Autodesk.Viewing.Initializer(options, function(){
+                    viewer.start();
+                    loadDocument(viewer, documentId, options.initialItemId);});
+            }
+        }
+
+        //Used for loading models hosted inside "bubbles" in the viewing service.
+        function loadDocument(viewer, documentId, initialItemId)
+        {
+            // Extract ACM headers and OAuth 2 token (used for getting the session id for the WIP image resources).
+            var acm = Autodesk.Viewing.Private.getParameterByName("acm");
+            if (acm) {
+                var Base64={_keyStr:"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=",encode:function(e){var t="";var n,r,i,s,o,u,a;var f=0;e=Base64._utf8_encode(e);while(f<e.length){n=e.charCodeAt(f++);r=e.charCodeAt(f++);i=e.charCodeAt(f++);s=n>>2;o=(n&3)<<4|r>>4;u=(r&15)<<2|i>>6;a=i&63;if(isNaN(r)){u=a=64}else if(isNaN(i)){a=64}t=t+this._keyStr.charAt(s)+this._keyStr.charAt(o)+this._keyStr.charAt(u)+this._keyStr.charAt(a)}return t},decode:function(e){var t="";var n,r,i;var s,o,u,a;var f=0;e=e.replace(/[^A-Za-z0-9\+\/\=]/g,"");while(f<e.length){s=this._keyStr.indexOf(e.charAt(f++));o=this._keyStr.indexOf(e.charAt(f++));u=this._keyStr.indexOf(e.charAt(f++));a=this._keyStr.indexOf(e.charAt(f++));n=s<<2|o>>4;r=(o&15)<<4|u>>2;i=(u&3)<<6|a;t=t+String.fromCharCode(n);if(u!=64){t=t+String.fromCharCode(r)}if(a!=64){t=t+String.fromCharCode(i)}}t=Base64._utf8_decode(t);return t},_utf8_encode:function(e){e=e.replace(/\r\n/g,"\n");var t="";for(var n=0;n<e.length;n++){var r=e.charCodeAt(n);if(r<128){t+=String.fromCharCode(r)}else if(r>127&&r<2048){t+=String.fromCharCode(r>>6|192);t+=String.fromCharCode(r&63|128)}else{t+=String.fromCharCode(r>>12|224);t+=String.fromCharCode(r>>6&63|128);t+=String.fromCharCode(r&63|128)}}return t},_utf8_decode:function(e){var t="";var n=0;var r=c1=c2=0;while(n<e.length){r=e.charCodeAt(n);if(r<128){t+=String.fromCharCode(r);n++}else if(r>191&&r<224){c2=e.charCodeAt(n+1);t+=String.fromCharCode((r&31)<<6|c2&63);n+=2}else{c2=e.charCodeAt(n+1);c3=e.charCodeAt(n+2);t+=String.fromCharCode((r&15)<<12|(c2&63)<<6|c3&63);n+=3}}return t}}
+                try {
+                    acm = JSON.parse(Base64.decode(acm));
+                } catch (error) {
+                    acm = null;
+                    console.log("Error parsing ACM JSON : " + error);
+                }
+            }
+
+            // Load the document.  Once loaded, find the item requested.  If not found,
+            // just find the first 3d geometry and load that.
+            //
+            Autodesk.Viewing.Document.load(documentId,
+                    function(document) { // onLoadCallback
+                        var geometryItems = [];
+
+                        if(initialItemId) {
+                            geometryItems = Autodesk.Viewing.Document.getSubItemsWithProperties(document.getRootItem(), {'guid':initialItemId}, true);
+                        }
+
+                        if(geometryItems.length == 0) {
+                            geometryItems = Autodesk.Viewing.Document.getSubItemsWithProperties(document.getRootItem(), {'type':'geometry', 'role':'3d'}, true);
+                        }
+
+                        if(geometryItems.length == 0) {
+                            geometryItems = Autodesk.Viewing.Document.getSubItemsWithProperties(document.getRootItem(), {'type':'geometry', 'role':'2d'}, true);
+                        }
+
+                        if(geometryItems.length > 0) {
+                            viewer.load(document.getViewablePath(geometryItems[0]));
+                        }
+                    },
+                    function(errorCode, errorMsg, statusCode, statusText, errors ) { // onErrorCallback
+                        var container = document.getElementById('viewer3d');
+                        if (container) {
+                            if (errors && errors.length) {
+                                avp.ErrorHandler.reportErrors(container, errors);
+                            }
+                            else {
+                                avp.ErrorHandler.reportError(container, errorCode, errorMsg, statusCode, statusText, "error");
+                            }
+                        }
+                    }, acm
+            );
+        }
+    </script>
+</head>
+
+<body onload="initializeViewer(getOptionsFromQueryString());" style="margin:0">
+    <div id="viewer3d" style="position:absolute; width:100%; height:100%;"></div>
+
+    <imageLMV src="gearbox.svf" camera="[0,0,0]" style="wireframe1" modelfilter="bolt88" width=100 height=100>
+    <imageLMV src="gearbox.svf" camera="[0,0,0]" style="wireframe1" width=100 height=100>
+    <imageLMV src="gearbox.svf" camera="[0,0,0]" style="wireframe1" width=100 height=100>
+    <imageLMV src="gearbox.svf" camera="[0,0,0]" style="wireframe1" width=100 height=100>
+
+</body>
+
+</html>

@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Tutorial: ViewerStates</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Tutorial: ViewerStates</h1>
+
+    <section>
+
+<header>
+    
+
+    <h2>ViewerStates</h2>
+</header>
+
+<article>
+    <p>Through getState() the caller will get back an object with various properties that describe the state of the viewer. Since it's a vanilla object, it can be serialized through JSON.stringify().</p>
+<p>Call restoreState() to restore the viewer state from a viewerState object.</p>
+<p>Keep in mind that both getState() and restoreState() are available through a Viewer3D instance.</p>
+<h2>Data structure</h2><p>The structure of the object is as follows:</p>
+<pre class="prettyprint source"><code>{
+    guid: &lt;String>,         // An id associated to the viewer state
+    seedURN: &lt;String>,      // reference to the URN to which this comment is associated to
+    overrides: [],          // Currently empty array.
+    objectSet: [{
+        id: [&lt;Number>],          // Array containing the selected node ids.
+        isolated: [&lt;Number>],    // Array containing the isolated node ids.
+        hidden: [&lt;Number>],      // Array containing the hidden node ids.  Notice that this array will always
+                                 // be empty when isolated contains id values.
+        explodeScale: &lt;Number>   // Value between [0..1] indicating the current explode state of the model.
+    }],
+    viewport: {
+        name: &quot;&quot;,                                       // Empty string.  Can be used to name the viewport.
+        eye: [&lt;Number>, &lt;Number>, &lt;Number>],            // Camera's [x, y, z] position.
+        target: [&lt;Number>, &lt;Number>, &lt;Number>],         // Camera's [x, y, z] target/look-at vector.
+        up: [&lt;Number>, &lt;Number>, &lt;Number>],             // Camera's [x, y, z] up vector.
+        worldUpVector: [&lt;Number>, &lt;Number>, &lt;Number>],  // World's [x, y, z] up vector.
+        pivotPoint: [&lt;Number>, &lt;Number>, &lt;Number>],     // Camera's [x, y, z] pivot point (orbit).
+        distanceToOrbit: &lt;Number>,                      // Eye-PivotPoint distance.
+        aspectRatio: &lt;Number>,                          // Viewport's aspect ratio.
+        projection: &quot;perspective&quot; | &quot;orthographic&quot;,     // String, either 'perspective' or 'orthographic'.
+        isOrthographic: &lt;Boolean>,                      // True is projection is orthographic.
+        fieldOfView: &lt;Number>,                          // Vertical field of view.  Available only in
+                                                        // perspective projection.
+        orthographicHeight: &lt;Number>,                   // Vertical canvas size.  Available only in
+                                                        // orthographic projection.
+    },
+    renderOptions: {
+        environment: &lt;String>,              // Name of the current background environment.
+        ambientOcclusion: {
+            enabled: &lt;Boolean>,             // Whether ambient Occlusion is enabled (true) or not (false).
+            radius: &lt;Number>,               // Radius Number value.
+            intensity: &lt;Number>             // Intensity Number value.
+        },
+        toneMap: {
+            method: &lt;Number>,               // Index to the toneMap method being used.
+            exposure: &lt;Number>,             // Exposure Number value.
+            lightMultiplier: &lt;Number>       // Light multiplier Number value.
+        },
+        appearance: {
+            ghostHidden: &lt;Boolean>,         // Whether ghost geometry is hidden (true) or not (false).
+            ambientShadow: &lt;Boolean>,       // Whether ambient shadow is enabled (true) or not (false).
+            antiAliasing: &lt;Boolean>,        // Whether antialiasing is enabled (true) or not (false).
+            progressiveDisplay: &lt;Boolean>,  // Whether progressive display is enabled (true) or not (false).
+            displayLines: &lt;Boolean>         // Whether lines are displayed (true) or not (false).
+        }
+    }
+}</code></pre><p>Check <a href="https://wiki.autodesk.com/pages/viewpage.action?pageId=160643881">Autodesk wiki</a> for more information.</p>
+<h2>Filtering</h2><p>Consumer classes can get an object with less values than those displayed above. Use cases include storing partial information to help with data transmission and storage space.</p>
+<p>To do so, they must use a FILTER object to specify what values should be left in and which ones should be left out.</p>
+<h2>Simple filtering</h2><p>For example, if we want a viewer state object with NO rendering options, we could create the following filter:</p>
+<pre class="prettyprint source"><code>var noRenderingOptionsFilter = {
+    guid: true,
+    seedURN: true,
+    overrides: true,
+    objectSet: true,
+    viewport: true,
+    renderOptions: false
+};</code></pre><p>If we want a viewer state object that ONLY contains the viewport information, we can create the following filter:</p>
+<pre class="prettyprint source"><code>var onlyViewportFilter = {
+    viewport: true
+};</code></pre><p>Notice that we only included the viewport property and all other where left out.  The filtering system will
+assume that non-present keys are filtered-out keys.</p>
+<h2>Advanced filtering</h2><p>Consumers can go deeper on their filtering.  Consider the case where only the eye, target and up vectors are
+the only values they require from the viewport object.  The following filter can be created for such purpose:</p>
+<pre class="prettyprint source"><code>var onlyThreePropsFromViewportFilter = {
+    viewport: {
+        eye: true,
+        target: true,
+        up: true
+    }
+};</code></pre><p>Keep in mind that Filters can be used for both getState() and restoreState().</p>
+</article>
+
+</section>
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Autodesk.Viewing.ApplicationScreenModeDelegate.html">ApplicationScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.Comments.CommentsExtension.html">CommentsExtension</a></li><li><a href="Autodesk.Viewing.Document.html">Document</a></li><li><a href="Autodesk.Viewing.Extension.html">Extension</a></li><li><a href="Autodesk.Viewing.Extensions.FirstPerson.FirstPersonExtension.html">FirstPersonExtension</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.CreateCircle.html">CreateCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.DeleteCircle.html">DeleteCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditAction.html">EditAction</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditMode.html">EditMode</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditModeCircle.html">EditModeCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.Markup.html">Markup</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupRectangle.html">MarkupRectangle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore.html">MarkupsCore</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.SetCircle.html">SetCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Measure.MeasureExtension.html">MeasureExtension</a></li><li><a href="Autodesk.Viewing.FileLoader.html">FileLoader</a></li><li><a href="Autodesk.Viewing.GuiViewer3D.html">GuiViewer3D</a></li><li><a href="Autodesk.Viewing.HotkeyManager.html">HotkeyManager</a></li><li><a href="Autodesk.Viewing.Initializer.html">Initializer</a></li><li><a href="Autodesk.Viewing.Model.html">Model</a></li><li><a href="Autodesk.Viewing.NullScreenModeDelegate.html">NullScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.Private.Preferences.html">Preferences</a></li><li><a href="Autodesk.Viewing.Private.ViewerState.html">ViewerState</a></li><li><a href="Autodesk.Viewing.ScreenModeDelegate.html">ScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.ToolController.html">ToolController</a></li><li><a href="Autodesk.Viewing.ToolInterface.html">ToolInterface</a></li><li><a href="Autodesk.Viewing.UI.Button.html">Button</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html">ComboButton</a></li><li><a href="Autodesk.Viewing.UI.Control.html">Control</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html">ControlGroup</a></li><li><a href="Autodesk.Viewing.UI.DockingPanel.html">DockingPanel</a></li><li><a href="Autodesk.Viewing.UI.ObjectContextMenu.html">ObjectContextMenu</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html">RadioButtonGroup</a></li><li><a href="Autodesk.Viewing.UI.SettingsPanel.html">SettingsPanel</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html">ToolBar</a></li><li><a href="Autodesk.Viewing.Viewer3D.html">Viewer3D</a></li><li><a href="Autodesk.Viewing.ViewingApplication.html">ViewingApplication</a></li><li><a href="Autodesk.Viewing.ViewingUtilities.html">ViewingUtilities</a></li></ul><h3>Events</h3><ul><li><a href="Autodesk.Viewing.UI.Button.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Button.html#event:STATE_CHANGED">STATE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Button.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:STATE_CHANGED">STATE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Control.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Control.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:ACTIVE_BUTTON_CHANGED">ACTIVE_BUTTON_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li></ul><h3>Tutorials</h3><ul><li>feature_markup</li></ul>
+</nav>
+
+<br clear="both">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.3.0-alpha11</a> on Fri Apr 15 2016 17:19:52 GMT+0800 (CST)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

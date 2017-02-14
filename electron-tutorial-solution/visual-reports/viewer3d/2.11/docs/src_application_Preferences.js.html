@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: src/application/Preferences.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: src/application/Preferences.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>
+/**
+ * Application preferences. Optionally uses web storage.
+ * @constructor
+ * @param {Viewer} viewer - Viewer instance
+ * @param {string} prefix - A string to prefix preference names in web storage
+ */
+Autodesk.Viewing.Private.Preferences = function (viewer, prefix) {
+    if (!prefix) {
+        prefix = 'Autodesk.Viewing.Preferences.';
+    }
+
+    // from stackoverflow:
+    // http://stackoverflow.com/questions/14555347/html5-localstorage-error-with-safari-quota-exceeded-err-dom-exception-22-an
+    //
+    function isLocalStorageSupported() {
+        var testKey = prefix + 'test';
+        try {
+            var storage = window.localStorage; // This may assert if browsers disallow sites from setting data.
+            storage.setItem(testKey, '1');
+            storage.removeItem(testKey);
+            return true;
+
+        } catch (error) {
+            return false;
+        }
+    }
+
+    var defaults = {}, // Default values
+        callbacks = {}, // Changed and Reset listeners
+        tags = {},
+        PREF_CHANGED_EVENT = 'PrefChanged',
+        PREF_RESET_EVENT = 'PrefReset',
+        useLocalStorage = isLocalStorageSupported(),
+        that = this;
+
+    // TODO: callbacks should be array, not single
+    // Would need to deal with issue of registering same callback twice
+    //
+    viewer.addEventListener(PREF_CHANGED_EVENT, function (event) {
+        var callbacksForName = callbacks[event.name];
+        if (callbacksForName) {
+            var callback = callbacksForName.changed;
+            if (callback) {
+                callback(event.value);
+            }
+        }
+    });
+
+    viewer.addEventListener(PREF_RESET_EVENT, function (event) {
+        for (var name in callbacks) {
+            if (callbacks.hasOwnProperty(name)) {
+                var callback = callbacks[name].reset;
+                if (callback) {
+                    callback(that[name]);
+                }
+            }
+        }
+    });
+
+    /**
+     * Get/set preference value in web storage.
+     * @param {string} name - Preference name
+     * @param {*=} [value] - Preference value
+     * @returns {*} Preference value or undefined if not available
+     * @private
+     */
+    function webStorage(name, value) {
+        if (useLocalStorage) {
+
+            // Prefix our names, so we don't pollute the localStorage of the embedding application
+            name = prefix + name;
+
+            if (typeof(value) !== "undefined") {
+                // If value is specified, we set this value at localStorage[name]
+                localStorage[name] = value;
+
+            } else {
+                // If no value is specified we return the value at localStorage[name]
+                value = localStorage[name];
+            }
+            return value;
+        }
+        return undefined;
+    }
+
+    /**
+     * Adds a preference name + default value, tries to load value from web storage.
+     * @param {string} name
+     * @param defaultValue
+     * @private
+     */
+    function addPref(name, defaultValue) {
+        if (typeof name !== 'string' || typeof that[name] === 'function') {
+            stderr('Preferences: invalid name=' + name);
+            return;
+        }
+
+        // Use default if nothing in web storage.
+        //
+        var value = webStorage(name);
+            ok = false;
+
+        if (value !== undefined) {
+            try {
+                value = JSON.parse(value);
+                ok = true;
+            } catch (e) {
+            }
+        }
+        that[name] = ok ? value : defaultValue;
+        tags[name] = {};
+    }
+
+    /**
+     * Load preference values from web storage/defaults.
+     * @param {Object} defaultValues - Preference names and their default values
+     */
+    this.load = function (defaultValues) {
+        defaults = defaultValues;
+        for (var name in defaults) {
+            if (defaults.hasOwnProperty(name)) {
+                addPref(name, defaults[name]);
+            }
+        }
+    };
+
+    /**
+     * Adds a tag to the specified preferences.
+     * These are used by reset().
+     * @param {string} tag
+     * @param {Array.&lt;string>|string} [names] - Preference names, default all preferences
+     */
+    this.tag = function (tag, names) {
+        if (tag) {
+            if (!names) {
+                names = Object.keys(defaults);
+            } else if (!Array.isArray(names)) {
+                names = [names];
+            }
+            for (var i = 0; i &lt; names.length; ++i) {
+                tags[names[i]][tag] = true;
+            }
+        }
+    };
+
+    /**
+     * Removes a tag from the specified preferences.
+     * These are used by reset().
+     * @param {string} tag
+     * @param {Array.&lt;string>|string} [names] - Preference names, default all preferences
+     */
+    this.untag = function (tag, names) {
+        if (tag) {
+            if (!names) {
+                names = Object.keys(defaults);
+            } else if (!Array.isArray(names)) {
+                names = [names];
+            }
+            for (var i = 0; i &lt; names.length; ++i) {
+                tags[names[i]][tag] = false;
+            }
+        }
+    };
+
+    /**
+     * Adds a new preference name + default value.
+     * This preference was not previously loaded via load().
+     * @param {string} name - Preference name
+     * @param defaultValue - Preference default value
+     * @param {Array.&lt;string>|string} [tags] - Optional tags
+     * @returns {boolean} true if the preference was added
+     */
+    this.add = function (name, defaultValue, tags) {
+        if (defaults.hasOwnProperty(name)) {
+            stderr("Preferences: " + name + " already exists");
+
+        } else {
+            defaults[name] = defaultValue;
+            addPref(name, defaultValue);
+
+            if (tags) {
+                if (!Array.isArray(tags)) {
+                    tags = [tags];
+                }
+                for (var i = 0; i &lt; tags.length; ++i) {
+                    this.tag(tags[i], name);
+                }
+            }
+            return true;
+        }
+        return false;
+    };
+
+    /**
+     * Removes an existing preference.
+     * @param {string} name - Preference name
+     * @param {boolean} [removeFromWebStorage=false] - true to clear the web storage entry for this preference
+     * @returns {boolean} true if the preference was removed
+     */
+    this.remove = function (name, removeFromWebStorage) {
+        if (defaults.hasOwnProperty(name)) {
+            delete defaults[name];
+            delete tags[name];
+            delete this[name];
+
+            if (removeFromWebStorage &amp;&amp; useLocalStorage) {
+                name = prefix + name;
+                delete localStorage[name];
+            }
+
+            return true;
+        }
+        return false;
+    };
+
+    /**
+     * Reset preferences to default values.
+     * If a tag is specified, then only certain preferences are reset.
+     * @param {string=} [tag] Optional tag
+     * @param {boolean=} [include=true] true to reset only preferences with matching tags
+     */
+    this.reset = function (tag, include) {
+        if (tag &amp;&amp; include === undefined) {
+            include = true;
+        }
+
+        for (var name in defaults) {
+            if (defaults.hasOwnProperty(name)) {
+                if (tag) {
+                    var tagged = !!tags[name][tag];
+                    if ((include &amp;&amp; !tagged) || (!include &amp;&amp; tagged)) {
+                        continue;
+                    }
+                }
+
+                if (this.set(name, defaults[name], false)) {
+                    viewer.fireEvent({
+                        type: PREF_RESET_EVENT,
+                        name: name,
+                        value: this[name]
+                    });
+                }
+            }
+        }
+    };
+
+    /**
+     * Get named preference value.
+     * Shortcut: prefs[name]
+     * @returns {*} Preference value
+     */
+    this.get = function (name) {
+        return this[name];
+    };
+
+    /**
+     * Set named preference value.
+     * Do not use shortcut prefs[name] = value
+     * @param {string} name - Preference name
+     * @param {*} value - Preference value
+     * @param {boolean=} [notify=true] - If true then PREF_CHANGED_EVENT is fired.
+     * @returns {boolean} true if the value changed, false otherwise
+     */
+    this.set = function (name, value, notify) {
+        // Updates the cached value as well as the value in the web storage
+        if (this[name] !== value) {
+            this[name] = value;
+            webStorage(name, value);
+
+            if (notify === undefined || notify) {
+                viewer.fireEvent({
+                    type: PREF_CHANGED_EVENT,
+                    name: name,
+                    value: value
+                });
+            }
+            
+            var logger = Autodesk.Viewing.Private.logger;
+            if (logger) {
+                logger.log({category: "pref_changed", name:name, value:value});
+            }
+
+            return true;
+        }
+        return false;
+    };
+
+    /**
+     * Listen for preference changed and reset events.
+     * @param {string} name - Preferences name
+     * @param {function(*)} onChangedCallback - Function called when preferences are changed
+     * @param {function(*)} onResetCallback - Function called when preferences are reset
+     */
+    this.addListeners = function (name, onChangedCallback, onResetCallback) {
+        callbacks[name] = {changed: onChangedCallback, reset: onResetCallback};
+    };
+    
+    /**
+     * Remove listeners for preference changed and reset events.
+     * @param {string} name - Preferences name
+     */
+    this.removeListeners = function(name) {
+        if(callbacks[name] !== undefined) {
+            delete callbacks[name];
+        }
+    };
+};
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Autodesk.Viewing.ApplicationScreenModeDelegate.html">ApplicationScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.Comments.CommentsExtension.html">CommentsExtension</a></li><li><a href="Autodesk.Viewing.Document.html">Document</a></li><li><a href="Autodesk.Viewing.Extension.html">Extension</a></li><li><a href="Autodesk.Viewing.Extensions.FirstPerson.FirstPersonExtension.html">FirstPersonExtension</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.CreateCircle.html">CreateCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.DeleteCircle.html">DeleteCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditAction.html">EditAction</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditMode.html">EditMode</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditModeCircle.html">EditModeCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.Markup.html">Markup</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupRectangle.html">MarkupRectangle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore.html">MarkupsCore</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.SetCircle.html">SetCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Measure.MeasureExtension.html">MeasureExtension</a></li><li><a href="Autodesk.Viewing.FileLoader.html">FileLoader</a></li><li><a href="Autodesk.Viewing.GuiViewer3D.html">GuiViewer3D</a></li><li><a href="Autodesk.Viewing.HotkeyManager.html">HotkeyManager</a></li><li><a href="Autodesk.Viewing.Initializer.html">Initializer</a></li><li><a href="Autodesk.Viewing.Model.html">Model</a></li><li><a href="Autodesk.Viewing.NullScreenModeDelegate.html">NullScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.Private.Preferences.html">Preferences</a></li><li><a href="Autodesk.Viewing.Private.ViewerState.html">ViewerState</a></li><li><a href="Autodesk.Viewing.ScreenModeDelegate.html">ScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.ToolController.html">ToolController</a></li><li><a href="Autodesk.Viewing.ToolInterface.html">ToolInterface</a></li><li><a href="Autodesk.Viewing.UI.Button.html">Button</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html">ComboButton</a></li><li><a href="Autodesk.Viewing.UI.Control.html">Control</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html">ControlGroup</a></li><li><a href="Autodesk.Viewing.UI.DockingPanel.html">DockingPanel</a></li><li><a href="Autodesk.Viewing.UI.ObjectContextMenu.html">ObjectContextMenu</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html">RadioButtonGroup</a></li><li><a href="Autodesk.Viewing.UI.SettingsPanel.html">SettingsPanel</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html">ToolBar</a></li><li><a href="Autodesk.Viewing.Viewer3D.html">Viewer3D</a></li><li><a href="Autodesk.Viewing.ViewingApplication.html">ViewingApplication</a></li><li><a href="Autodesk.Viewing.ViewingUtilities.html">ViewingUtilities</a></li></ul><h3>Events</h3><ul><li><a href="Autodesk.Viewing.UI.Button.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Button.html#event:STATE_CHANGED">STATE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Button.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:STATE_CHANGED">STATE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Control.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Control.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:ACTIVE_BUTTON_CHANGED">ACTIVE_BUTTON_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li></ul><h3>Tutorials</h3><ul><li>feature_markup</li></ul>
+</nav>
+
+<br clear="both">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.3.0-alpha11</a> on Fri Apr 15 2016 17:19:51 GMT+0800 (CST)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

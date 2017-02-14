@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: extensions/Measure/Measure.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: extensions/Measure/Measure.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>
+(function() {
+
+'use strict';
+
+var avem = AutodeskNamespace('Autodesk.Viewing.Extensions.Measure'),
+    av = Autodesk.Viewing,
+    avu = av.UI;
+
+/**
+ * @class
+ * Extension used to support distance and angle measure for 2d and 3d models.
+ *
+ * @tutorial feature_measure
+ * @param {Autodesk.Viewing.Viewer3D} viewer - the viewer to be extended.
+ * @param {Object} options - An optional dictionary of options for this extension.
+ * @alias Autodesk.Viewing.Extensions.Measure.MeasureExtension
+ * @constructor
+*/
+var MeasureExtension = function(viewer, options) {
+    Autodesk.Viewing.Extension.call(this, viewer, options);
+};
+
+MeasureExtension.prototype = Object.create(Autodesk.Viewing.Extension.prototype);
+MeasureExtension.prototype.constructor = MeasureExtension;
+
+
+MeasureExtension.prototype.onToolbarCreated = function() {
+    this.viewer.removeEventListener(av.TOOLBAR_CREATED_EVENT, this.bindedOnToolbarCreated);
+    this.bindedOnToolbarCreated = null;
+    this.createUI();
+};
+
+/**
+ * Load measure extension.
+ * @returns {boolean} true if measure extension is loaded successfully.
+*/
+MeasureExtension.prototype.load = function() {
+
+    var self   = this;
+    var viewer = this.viewer;
+
+    this.escapeHotkeyId = 'Autodesk.Measure.Hotkeys.Escape';
+
+    // Register the Measure tool
+    if (!viewer.toolController){
+        return false;
+    }
+    this.tool = new avem.MeasureTool(viewer, { onCloseCallback: function(e) {
+        self.enableMeasureTool(false);
+    }});
+    viewer.toolController.registerTool(this.tool);
+
+    if (this.viewer.toolbar) {
+        this.createUI();
+    } else {
+        this.bindedOnToolbarCreated = this.onToolbarCreated.bind(this);
+        this.viewer.addEventListener(av.TOOLBAR_CREATED_EVENT, this.bindedOnToolbarCreated);
+    }
+
+    return true;
+};
+
+/**
+ * Unload measure extension.
+ * @returns {boolean} true if measure extension is unloaded successfully.
+*/
+MeasureExtension.prototype.unload = function () {
+    var viewer = this.viewer;
+
+    // Remove the ui from the viewer.
+    this.destroyUI();
+    if (this.bindedOnToolbarCreated) {
+        this.viewer.removeEventListener(av.TOOLBAR_CREATED_EVENT, this.bindedOnToolbarCreated);
+        this.bindedOnToolbarCreated = null;
+    }
+
+    // Deregister tool
+    viewer.toolController.deregisterTool(this.tool);
+    this.tool = null;
+
+    return true;
+};
+
+/**
+ * Whether the measure tool is currently active.
+ * @return {Boolean}
+ */
+MeasureExtension.prototype.isActive = function() {
+    return this.tool.isActive();
+};
+
+/**
+ * Enable/disable the measure tool.
+ * @param {boolean} active - true to activate, false to deactivate.
+ * @returns {boolean} true if a change in activeness occurred.
+ */
+MeasureExtension.prototype.setActive = function(active) {
+    return this.enableMeasureTool(active);
+};
+
+/**
+ * Toggles activeness of the measure tool.
+ *
+ * @return {Boolean} Whether the tool is active
+ */
+MeasureExtension.prototype.toggle = function() {
+    if (this.isActive()) {
+        this.enableMeasureTool(false);
+    } else {
+        this.enableMeasureTool(true);
+    }
+    return this.isActive();
+};
+
+/**
+ * Get the current measurement in the measure tool.
+ * @param {String} [unitType] - Optional measure unit, [ 'decimal-ft', 'ft', 'ft-and-decimal-in',
+ *                            'decimal-in', 'fractional-in', 'm', 'cm', 'mm', 'm-and-cm' ]
+ * @param {Number} [precision] - Optional measure precision index,  [ 0 - 0, 1 - 0.1, 2 - 0.01, 3 - 0.001, 4 - 0.0001, 5 - 0.00001 ]
+ *                             when units type is 'ft', 'in' or 'fractional-in' [ 0 - 1, 1 - 1/2, 2 - 1/4, 3 - 1/8, 4 - 1/16, 5 - 1/32, 6 - 1/64 ]
+ * @return {Object|null} Containing properties of the current measurement, or null.
+ */
+MeasureExtension.prototype.getMeasurement = function(unitType, precision) {
+    var measurement = null;
+    if (this.isActive()) {
+        measurement = this.tool.getMeasurement(unitType, precision);
+    }
+    return measurement;
+};
+
+/**
+ * Get all available units in measure tool.
+ *
+ * @return {Array} Containing all available units.
+*/
+MeasureExtension.prototype.getUnitOptions = function() {
+    var units = [
+        { name: 'Unknown', type: '' },
+        { name: 'Decimal feet', type: 'decimal-ft' },
+        { name: 'Feet and fractional inches', type: 'ft' },
+        { name: 'Feet and decimal inches', type: 'ft-and-decimal-in' },
+        { name: 'Decimal inches', type: 'decimal-in' },
+        { name: 'Fractional inches', type: 'fractional-in' },
+        { name: 'Meters', type: 'm' },
+        { name: 'Centimeters', type: 'cm' },
+        { name: 'Millimeters', type: 'mm' },
+        { name: 'Meters and centimeters', type: 'm-and-cm' }
+    ];
+
+    return units;
+};
+
+/**
+ * Get all available precisions in measure tool.
+ * @param {Boolean} isFractional - set true to get fractional precisions
+ * @return {Array} Containing all available precisions.
+*/
+MeasureExtension.prototype.getPrecisionOptions = function(isFractional) {
+
+    if (isFractional)
+        var precisions = ['1', '1/2', '1/4', '1/8', '1/16', '1/32', '1/64'];
+    else
+        var precisions = ['0', '0.1', '0.01', '0.001', '0.0001', '0.00001'];
+
+    return precisions;
+};
+
+/**
+ * Get the default measure unit in measure tool.
+ *
+ * @return {String} The default measure unit.
+*/
+MeasureExtension.prototype.getDefaultUnit = function() {
+    var unit = this.viewer.model.getDisplayUnit();
+
+    return unit;
+};
+
+/**
+ * Enable/disable the measure tool.
+ * @param {boolean} enable - true to enable, false to disable.
+ * @returns {boolean} true if the tool state was changed.
+ * @private
+ */
+MeasureExtension.prototype.enableMeasureTool = function(enable) {
+    var toolController = this.viewer.toolController,
+        isActive = this.tool.isActive();
+
+    this.viewer.impl.disableRollover(enable);
+
+    if (enable &amp;&amp; !isActive) {
+        toolController.activateTool("measure");
+        if (this.measureToolButton) {
+            this.measureToolButton.setState(Autodesk.Viewing.UI.Button.State.ACTIVE);
+        }
+        return true;
+
+    } else if (!enable &amp;&amp; isActive) {
+        toolController.deactivateTool("measure");
+        if (this.measureToolButton) {
+            this.measureToolButton.setState(Autodesk.Viewing.UI.Button.State.INACTIVE);
+        }
+        return true;
+    }
+    return false;
+};
+
+
+
+    /**
+ * Create measure button in toolbar.
+ * @private
+*/
+MeasureExtension.prototype.createUI = function()
+{
+    var self   = this;
+    var viewer = this.viewer;
+
+    this.measureToolButton = null;
+
+    var toolbar = viewer.getToolbar(true);
+    var modelTools = toolbar.getControl(av.TOOLBAR.MODELTOOLSID);
+
+    // Create a button for the measure tool.
+    this.measureToolButton = new avu.Button( "toolbar-measureTool");
+    this.measureToolButton.setToolTip("Measure");
+    this.measureToolButton.setIcon("adsk-icon-measure");
+    this.measureToolButton.onClick = function(e) {
+        self.enableMeasureTool(!self.tool.isActive());
+    };
+    this.onMeasureButtonStateChange = function(e) {
+        if (e.state === avu.Button.State.ACTIVE) {
+            self.enableMeasureTool(true);
+        } else if (e.state === avu.Button.State.INACTIVE) {
+            self.enableMeasureTool(false);
+        }
+    };
+    this.measureToolButton.addEventListener(avu.Button.Event.STATE_CHANGED, this.onMeasureButtonStateChange);
+
+    modelTools.addControl(this.measureToolButton, {index:0});
+
+    // Escape hotkey to exit tool.
+    //
+    var hotkeys = [{
+        keycodes: [
+            av.theHotkeyManager.KEYCODES.ESCAPE
+        ],
+        onRelease: function () {
+            return self.enableMeasureTool(false);
+        }
+    }];
+    av.theHotkeyManager.pushHotkeys(this.escapeHotkeyId, hotkeys);
+};
+
+/**
+ * Destroy measure button in toolbar.
+ * @private
+*/
+MeasureExtension.prototype.destroyUI = function()
+{
+    var viewer = this.viewer;
+
+    if (this.measureToolButton) {
+        this.measureToolButton.removeEventListener(avu.Button.Event.STATE_CHANGED, this.onMeasureButtonStateChange);
+    }
+
+    var toolbar = viewer.getToolbar(false);
+    if (toolbar) {
+        var modelTools = toolbar.getControl(av.TOOLBAR.MODELTOOLSID);
+        if (modelTools) {
+            if (this.measureToolButton) {
+                var submenu = modelTools.getControl("toolbar-inspectSubMenu");
+                if (submenu) {
+                    submenu.removeControl(this.measureToolButton.getId());
+                } else {
+                    modelTools.removeControl(this.measureToolButton.getId());
+                }
+            }
+
+            this.measureToolButton = null;
+        }
+    }
+
+    av.theHotkeyManager.popHotkeys(this.escapeHotkeyId);
+};
+
+avem.MeasureExtension = MeasureExtension;
+av.theExtensionManager.registerExtension('Autodesk.Measure', MeasureExtension);
+
+
+})();</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Autodesk.Viewing.ApplicationScreenModeDelegate.html">ApplicationScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.Comments.CommentsExtension.html">CommentsExtension</a></li><li><a href="Autodesk.Viewing.Document.html">Document</a></li><li><a href="Autodesk.Viewing.Extension.html">Extension</a></li><li><a href="Autodesk.Viewing.Extensions.FirstPerson.FirstPersonExtension.html">FirstPersonExtension</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.CreateCircle.html">CreateCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.DeleteCircle.html">DeleteCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditAction.html">EditAction</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditMode.html">EditMode</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditModeCircle.html">EditModeCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.Markup.html">Markup</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupRectangle.html">MarkupRectangle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore.html">MarkupsCore</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.SetCircle.html">SetCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Measure.MeasureExtension.html">MeasureExtension</a></li><li><a href="Autodesk.Viewing.FileLoader.html">FileLoader</a></li><li><a href="Autodesk.Viewing.GuiViewer3D.html">GuiViewer3D</a></li><li><a href="Autodesk.Viewing.HotkeyManager.html">HotkeyManager</a></li><li><a href="Autodesk.Viewing.Initializer.html">Initializer</a></li><li><a href="Autodesk.Viewing.Model.html">Model</a></li><li><a href="Autodesk.Viewing.NullScreenModeDelegate.html">NullScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.Private.Preferences.html">Preferences</a></li><li><a href="Autodesk.Viewing.Private.ViewerState.html">ViewerState</a></li><li><a href="Autodesk.Viewing.ScreenModeDelegate.html">ScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.ToolController.html">ToolController</a></li><li><a href="Autodesk.Viewing.ToolInterface.html">ToolInterface</a></li><li><a href="Autodesk.Viewing.UI.Button.html">Button</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html">ComboButton</a></li><li><a href="Autodesk.Viewing.UI.Control.html">Control</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html">ControlGroup</a></li><li><a href="Autodesk.Viewing.UI.DockingPanel.html">DockingPanel</a></li><li><a href="Autodesk.Viewing.UI.ObjectContextMenu.html">ObjectContextMenu</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html">RadioButtonGroup</a></li><li><a href="Autodesk.Viewing.UI.SettingsPanel.html">SettingsPanel</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html">ToolBar</a></li><li><a href="Autodesk.Viewing.Viewer3D.html">Viewer3D</a></li><li><a href="Autodesk.Viewing.ViewingApplication.html">ViewingApplication</a></li><li><a href="Autodesk.Viewing.ViewingUtilities.html">ViewingUtilities</a></li></ul><h3>Events</h3><ul><li><a href="Autodesk.Viewing.UI.Button.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Button.html#event:STATE_CHANGED">STATE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Button.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:STATE_CHANGED">STATE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Control.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Control.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:ACTIVE_BUTTON_CHANGED">ACTIVE_BUTTON_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li></ul><h3>Tutorials</h3><ul><li>feature_markup</li></ul>
+</nav>
+
+<br clear="both">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.3.0-alpha11</a> on Fri Apr 15 2016 17:19:51 GMT+0800 (CST)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

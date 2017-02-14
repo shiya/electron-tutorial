@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Viewer 3D Demo : @buildnum@</title>
+    <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1, user-scalable=no" />
+    <meta charset="utf-8">
+
+    <style>
+        .test-padding {
+            left: 10%;
+            top: 50px;
+            width: 80%;
+            height: 400px;
+            position: relative;
+        }
+    </style>
+
+    <link rel="stylesheet" href="../build/style.css" type="text/css">
+
+    <script src="../examples/initialization/enable-debugging-hack.js"></script>
+
+    <script src="../build/three.js"></script>
+    <script src="../build/viewer3D.js"></script>
+
+    <script src="../examples/initialization/get-viewer-options-from-query-string.js"></script>
+    <script src="../examples/initialization/initialize-viewer.js"></script>
+    <script src="../examples/initialization/load-document.js"></script>
+
+    <style>
+        .toolbar-example-red {
+            background:red;
+        }
+        .toolbar-example-blue {
+            background:blue;
+        }
+        .toolbar-example-green {
+            background:green;
+        }
+        #toolbar-example-yellow {
+            background:yellow;
+            border: 2px  solid black;
+            border-right: 0px;;
+        }
+        #toolbar-example-pink {
+            background:darkmagenta;
+            border: 2px solid black;
+        }
+        .toolbar-example-black {
+            background:black;
+            border: 2px solid red;
+        }
+
+        .toolbar-example-grey {
+            background:#808080;
+        }
+    </style>
+
+    <script>
+        var av = Autodesk.Viewing;
+        var avp = Autodesk.Viewing.Private;
+
+        function initializeToolbar() {
+			initializeViewer();
+			createToolbar( document.getElementById('toolbar') );
+        }
+
+        function createToolbar( container ) {
+
+            //
+            // Creates a toolbar with buttons with custom images attach to them.
+            //
+
+            var toolbar = new Autodesk.Viewing.UI.ToolBar('adsk-toolbar');
+            var controlGroup = new Autodesk.Viewing.UI.ControlGroup('adsk-control-group');
+
+            //var subMenuId = "generalTool";
+            //var panelToolSubMenu = toolbar.addSubToolbar( subMenuId, false );
+
+            var button1 = new Autodesk.Viewing.UI.Button('adsk-example-button-red');
+            button1.onClick = function(e) {
+				window.NOP_VIEWER.finish();
+            };
+            button1.addClass('toolbar-example-red');
+            button1.setToolTip('Shutdown the viewer');
+            controlGroup.addControl(button1);
+
+            // Set the image on the tool button.
+            //var imagePath = LMV_RESOURCE_ROOT + "icons/focus_icon.png";
+            //panelToolSubMenu.setToolImage( button1.id, imagePath );
+
+            var button2 = new Autodesk.Viewing.UI.Button('adsk-example-button-blue');
+            button2.onClick = function(e) {
+				initializeViewer();
+            };
+            button2.addClass('toolbar-example-blue');
+            button2.setToolTip('Initialize the viewer');
+            controlGroup.addControl(button2);
+
+            toolbar.addControl(controlGroup);
+
+            container.appendChild(toolbar.container);
+
+            // Set the image on the tool button.
+            //imagePath = LMV_RESOURCE_ROOT + "icons/thumbnail_view_icon.png";
+            //panelToolSubMenu.setToolImage( button3.id, imagePath );
+        }
+    </script>
+</head>
+
+<body onload="initializeToolbar();" style="margin:0">
+    <div id="viewer3d" style="position:absolute; left:20px; top:20px; width:1200px; height:500px; border-color: black; overflow-y: scroll; overflow-x:auto; border-style:solid; border-width: 1px; color:red">>
+    </div>
+    <div id="toolbar" style="position:absolute; left:20px; top:521px; width:1200px; height:100px; border-color: black; overflow-y: scroll; overflow-x:auto; border-style:solid; border-width: 1px; color:blue">
+        <ul>
+            <li>Click on a red button to shutdown the viewer.</li>
+            <li>Click on a blue button to initialize the viewer.</li>
+        </ul>
+    </div>
+</body>
+
+</html>

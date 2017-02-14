@@ -1,0 +1,17 @@
+<html manifest="cache.manifest"> <!-- make sure the file type is set to text/cache-manifest -->
+<head>
+    <title>Viewer 3D Demo : @buildnum@</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta charset="utf-8">
+    <link rel="shortcut icon" href="#" />
+    <style> @viewport{ zoom: 1.0; width: device-width; } </style>
+    <script src="three.min.js"></script>
+    <script src="firefly.min.js"></script>
+    <script src="viewerWebView.js"></script>
+</head>
+<body onload="initializeViewer(getOptionsFromQueryString());" style="margin:0">
+    <div id="viewerWebView" style="position:absolute; width:100%; height:100%;"></div>
+</body>
+</html>

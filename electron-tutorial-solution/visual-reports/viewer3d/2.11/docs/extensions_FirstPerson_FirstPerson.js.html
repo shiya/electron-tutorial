@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: extensions/FirstPerson/FirstPerson.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: extensions/FirstPerson/FirstPerson.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>
+(function() {
+
+//
+// First Person
+//
+
+'use strict';
+
+AutodeskNamespace('Autodesk.Viewing.Extensions.FirstPerson');
+
+    /**
+     * @class
+     * Activates a First Person navigation tool, similar to those found in videogames.&lt;br>
+     * It will also replace the default walk tool button when GuiViewer3D is present.
+     *
+     * @extends {Autodesk.Viewing.Extension}
+     * @param {Autodesk.Viewing.Viewer3D} viewer
+     * @param {Object} [options] - not used
+     * @constructor
+     */
+Autodesk.Viewing.Extensions.FirstPerson.FirstPersonExtension = function(viewer, options) {
+    Autodesk.Viewing.Extension.call(this, viewer, options);
+};
+
+Autodesk.Viewing.Extensions.FirstPerson.FirstPersonExtension.prototype = Object.create(Autodesk.Viewing.Extension.prototype);
+Autodesk.Viewing.Extensions.FirstPerson.FirstPersonExtension.prototype.constructor = Autodesk.Viewing.Extensions.FirstPerson.FirstPersonExtension;
+
+Autodesk.Viewing.Extensions.FirstPerson.FirstPersonExtension.prototype.load = function() {
+    var self = this;
+    var viewer = this.viewer;
+    var avu = Autodesk.Viewing.UI;
+
+    // Register tool
+    this.tool = new Autodesk.Viewing.Extensions.FirstPerson.FirstPersonTool(viewer);
+    viewer.toolController.registerTool(this.tool);
+
+    // Add the ui to the viewer.
+    this.createUI();
+
+    // Register listeners
+    this.onToolChanged = function (e) {
+        if (e.toolName.indexOf('firstperson') === -1) {
+            return;
+        }
+        if (self.firstPersonToolButton) {
+            var state = e.active ? avu.Button.State.ACTIVE : avu.Button.State.INACTIVE;
+            self.firstPersonToolButton.setState(state);
+        }
+    };
+
+    viewer.addEventListener(Autodesk.Viewing.TOOL_CHANGE_EVENT, this.onToolChanged);
+
+    return true;
+};
+
+Autodesk.Viewing.Extensions.FirstPerson.FirstPersonExtension.prototype.createUI = function()
+{
+    var viewer = this.viewer;
+    if (!viewer.getToolbar) return; // Adds support for Viewer3D instance
+
+    var self   = this;
+    var avu = Autodesk.Viewing.UI;
+    var toolbar = viewer.getToolbar(true);
+    var navTools = toolbar.getControl(Autodesk.Viewing.TOOLBAR.NAVTOOLSID);
+
+    // Create a button for the tool.
+    this.firstPersonToolButton = new avu.Button('toolbar-firstPersonTool');
+    this.firstPersonToolButton.setToolTip('First person');
+    this.firstPersonToolButton.onClick = function(e) {
+        var state = self.firstPersonToolButton.getState();
+        if (state === avu.Button.State.INACTIVE) {
+            viewer.setActiveNavigationTool("firstperson");
+        } else if (state === avu.Button.State.ACTIVE) {
+            viewer.setActiveNavigationTool();
+        }
+    };
+    this.firstPersonToolButton.setIcon("adsk-icon-first-person");
+
+    var cameraSubmenuTool = navTools.getControl('toolbar-cameraSubmenuTool');
+    if (cameraSubmenuTool) {
+        navTools.addControl(this.firstPersonToolButton, {index: navTools.indexOf(cameraSubmenuTool.getId())});
+    } else {
+        navTools.addControl(this.firstPersonToolButton);
+    }
+};
+
+Autodesk.Viewing.Extensions.FirstPerson.FirstPersonExtension.prototype.unload = function()
+{
+    var viewer = this.viewer;
+
+    // Remove listeners
+    viewer.removeEventListener(Autodesk.Viewing.TOOL_CHANGE_EVENT, this.onToolChanged);
+    this.onToolChanged = undefined;
+
+    // Remove hotkey
+    Autodesk.Viewing.theHotkeyManager.popHotkeys(this.HOTKEYS_ID);
+
+    // Remove the UI
+    if (this.firstPersonToolButton) {
+        var toolbar = viewer.getToolbar(false);
+        if (toolbar) {
+            toolbar.getControl(Autodesk.Viewing.TOOLBAR.NAVTOOLSID).removeControl(this.firstPersonToolButton.getId());
+        }
+        this.firstPersonToolButton = null;
+    }
+
+    //Uh, why does the viewer need to keep track of this in addition to the tool stack?
+    if (viewer.getActiveNavigationTool() == this.tool.getName())
+        viewer.setActiveNavigationTool();
+
+    // Deregister tool
+    viewer.toolController.deregisterTool(this.tool);
+    this.tool = null;
+
+    return true;
+};
+
+Autodesk.Viewing.theExtensionManager.registerExtension('Autodesk.FirstPerson', Autodesk.Viewing.Extensions.FirstPerson.FirstPersonExtension);
+
+
+})();</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Autodesk.Viewing.ApplicationScreenModeDelegate.html">ApplicationScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.Comments.CommentsExtension.html">CommentsExtension</a></li><li><a href="Autodesk.Viewing.Document.html">Document</a></li><li><a href="Autodesk.Viewing.Extension.html">Extension</a></li><li><a href="Autodesk.Viewing.Extensions.FirstPerson.FirstPersonExtension.html">FirstPersonExtension</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.CreateCircle.html">CreateCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.DeleteCircle.html">DeleteCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditAction.html">EditAction</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditMode.html">EditMode</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditModeCircle.html">EditModeCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.Markup.html">Markup</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupRectangle.html">MarkupRectangle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore.html">MarkupsCore</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.SetCircle.html">SetCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Measure.MeasureExtension.html">MeasureExtension</a></li><li><a href="Autodesk.Viewing.FileLoader.html">FileLoader</a></li><li><a href="Autodesk.Viewing.GuiViewer3D.html">GuiViewer3D</a></li><li><a href="Autodesk.Viewing.HotkeyManager.html">HotkeyManager</a></li><li><a href="Autodesk.Viewing.Initializer.html">Initializer</a></li><li><a href="Autodesk.Viewing.Model.html">Model</a></li><li><a href="Autodesk.Viewing.NullScreenModeDelegate.html">NullScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.Private.Preferences.html">Preferences</a></li><li><a href="Autodesk.Viewing.Private.ViewerState.html">ViewerState</a></li><li><a href="Autodesk.Viewing.ScreenModeDelegate.html">ScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.ToolController.html">ToolController</a></li><li><a href="Autodesk.Viewing.ToolInterface.html">ToolInterface</a></li><li><a href="Autodesk.Viewing.UI.Button.html">Button</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html">ComboButton</a></li><li><a href="Autodesk.Viewing.UI.Control.html">Control</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html">ControlGroup</a></li><li><a href="Autodesk.Viewing.UI.DockingPanel.html">DockingPanel</a></li><li><a href="Autodesk.Viewing.UI.ObjectContextMenu.html">ObjectContextMenu</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html">RadioButtonGroup</a></li><li><a href="Autodesk.Viewing.UI.SettingsPanel.html">SettingsPanel</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html">ToolBar</a></li><li><a href="Autodesk.Viewing.Viewer3D.html">Viewer3D</a></li><li><a href="Autodesk.Viewing.ViewingApplication.html">ViewingApplication</a></li><li><a href="Autodesk.Viewing.ViewingUtilities.html">ViewingUtilities</a></li></ul><h3>Events</h3><ul><li><a href="Autodesk.Viewing.UI.Button.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Button.html#event:STATE_CHANGED">STATE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Button.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:STATE_CHANGED">STATE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Control.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Control.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:ACTIVE_BUTTON_CHANGED">ACTIVE_BUTTON_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li></ul><h3>Tutorials</h3><ul><li>feature_markup</li></ul>
+</nav>
+
+<br clear="both">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.3.0-alpha11</a> on Fri Apr 15 2016 17:19:51 GMT+0800 (CST)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

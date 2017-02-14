@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: extensions/Markup/core/Markup.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: extensions/Markup/core/Markup.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>(function(){ 'use strict';
+
+    var namespace = Autodesk.Viewing.Extensions.Markups.Core;
+    var namespaceUtils = Autodesk.Viewing.Extensions.Markups.Core.Utils;
+
+    /**
+     * @class
+     * Base class for all Markups.&lt;br>
+     * A Markup is a class that is capable of rendering itself as an Svg node.&lt;br>
+     * It can also render itself into a canvas-2d context.
+     * Component within {@link Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore MarkupsCore} extension.
+     *
+     * Any class extending Markup should contain at least the following methods:
+     * - getEditMode()
+     * - set()
+     * - updateStyle()
+     * - setParent()
+     * - setRotation()
+     * - setSize()
+     * - setPosition()
+     * - renderToCanvas()
+     * - setMetadata()
+     *
+     * A good reference is the rectangle markup implementation available in
+     * [MarkupRectangle.js]{@link Autodesk.Viewing.Extensions.Markups.Core.MarkupRectangle}.
+     *
+     * @tutorial feature_markup
+     * @constructor
+     * @memberof Autodesk.Viewing.Extensions.Markups.Core
+     *
+     * @param {number} id - Identifier, populated with return value of {@link Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore#getId getId()}.
+     * @param {Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore} editor - Markups extension
+     * @param {Array} styleAttributes - Attributes for customization. Related to {@link Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore#setStyle setStyle()}.
+     * @constructor
+     */
+    function Markup(id, editor, styleAttributes) {
+
+        this.id = id;
+        this.type = "";
+        this.editor = editor;
+        this.viewer = editor.viewer;
+        this.position = {x: 0, y: 0};
+        this.size = {x:0, y:0};
+        this.rotation = 0;
+        this.style = namespaceUtils.createStyle(styleAttributes, this.editor);
+        this.style = namespaceUtils.copyStyle(editor.getDefaultStyle(), this.style);
+        this.highlightColor = '#FAFF3C';
+        this.constraintWidth = false;
+        this.constraintHeight = false;
+        this.constraintRotation = false;
+        this.highlighted = false;
+        this.selected = false;
+
+        namespaceUtils.addTraitEventDispatcher(this);
+    }
+
+    /*
+     * Constants
+     */
+    namespace.MARKUP_TYPE_ARROW = "arrow";
+    namespace.MARKUP_TYPE_TEXT = "label";
+    namespace.MARKUP_TYPE_RECTANGLE = "rectangle";
+    namespace.MARKUP_TYPE_CIRCLE = "ellipse";
+    namespace.MARKUP_TYPE_CLOUD = "cloud";
+    namespace.MARKUP_TYPE_FREEHAND = "freehand";
+    namespace.MARKUP_TYPE_POLYLINE = "polyline";
+
+    /*
+     * Event types
+     */
+    namespace.EVENT_EDITMODE_CHANGED = "EVENT_EDITMODE_CHANGED";
+
+    namespace.EVENT_MARKUP_SELECTED = "EVENT_MARKUP_SELECTED";
+    namespace.EVENT_MARKUP_DRAGGING = "EVENT_MARKUP_DRAGGING";
+    namespace.EVENT_MARKUP_ENTER_EDITION = "EVENT_MARKUP_ENTER_EDITION";
+    namespace.EVENT_MARKUP_CANCEL_EDITION = "EVENT_MARKUP_CANCEL_EDITION";
+    namespace.EVENT_MARKUP_DELETE_EDITION = "EVENT_MARKUP_DELETE_EDITION";
+
+    var proto = Markup.prototype;
+    namespace.Markup = Markup;
+
+    proto.destroy = function() {
+
+    };
+
+    /**
+     * Clones (deep-copy) the markup. Used internally by the copy/cut/paste mechanism in
+     * {@link Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore MarkupsCore}.
+     *
+     * @returns {Autodesk.Viewing.Extensions.Markups.Core.Markup} clone of the current markup
+     */
+    Autodesk.Viewing.Extensions.Markups.Core.Markup.prototype.clone = function() {
+
+        var clone = Object.create(this.__proto__);
+        var overrides = this.getCloneOverrides();
+
+        for (var name in this) {
+
+            if(!this.hasOwnProperty(name)) {
+                continue;
+            }
+
+            var member = this[name];
+
+            // Is there an override for this member?
+            if (overrides.hasOwnProperty(name)) {
+                clone[name] = overrides[name];
+                continue;
+            }
+
+            // Member has a clone function?
+            if (member['clone'] instanceof Function) {
+                clone[name] = member.clone();
+                continue;
+            }
+
+            // Is it a function?
+            if (member instanceof Function) {
+                clone[name] = member.bind(clone);
+                continue;
+            }
+
+            // Is it an html node?
+            if (member.nodeType) {
+                clone[name] = member.cloneNode(true);
+                continue;
+            }
+
+            // Just a plain object?
+            if (member instanceof Object) {
+                clone[name] = JSON.parse(JSON.stringify(member));
+                continue;
+            }
+
+            // Ok, it seems it's just a primitive type.
+            clone[name] = member;
+        }
+
+        clone.bindDomEvents();
+        return clone;
+    };
+
+    /**
+     * Used internally by
+     * {@link Autodesk.Viewing.Extensions.Markups.Core.Markup#clone clone()},
+     * provides a mechanism to avoid cloning specific attributes.&lt;br>
+     * Developers only need to override this method when creating new Markup types.
+     * When overriding, first call the super() implementation and then include additional attribute/value pairs to it.
+     * @returns {Object} containing attributes that need not to be cloned.
+     */
+    Autodesk.Viewing.Extensions.Markups.Core.Markup.prototype.getCloneOverrides = function() {
+
+        return {
+            viewer: this.viewer,
+            editor: this.editor,
+            hammer: null,
+            listeners: {}
+        }
+    };
+
+    /**
+     * Used internally to select a markup.&lt;br>
+     * Fires event Autodesk.Viewing.Extensions.Markups.Core.EVENT_MARKUP_SELECTED.
+     */
+    Autodesk.Viewing.Extensions.Markups.Core.Markup.prototype.select = function () {
+
+        if (this.selected) {
+            return;
+        }
+
+        this.selected = true;
+        this.highlighted = false;
+        this.updateStyle();
+        this.fireEvent({type: namespace.EVENT_MARKUP_SELECTED, markup: this});
+    };
+
+    /**
+     * Used internally to signal that the current markup has been unselected.&lt;br>
+     * No event is fired.
+     */
+    Autodesk.Viewing.Extensions.Markups.Core.Markup.prototype.unselect = function() {
+
+        this.selected = false;
+    };
+
+    proto.highlight = function(highlight) {
+
+        if (this.interactionsDisabled) {
+            return;
+        }
+
+        this.highlighted = highlight;
+        this.updateStyle();
+    };
+
+    /**
+     * Returns a copy of the markup's style.
+     * @returns {Object}
+     */
+    Autodesk.Viewing.Extensions.Markups.Core.Markup.prototype.getStyle = function() {
+
+        return namespaceUtils.cloneStyle(this.style);
+    };
+
+    /**
+     * Used internally to set the style object. Triggers a re-render of the markup (Svg)
+     * @param {Object} style - Dictionary with key/value pairs
+     */
+    Autodesk.Viewing.Extensions.Markups.Core.Markup.prototype.setStyle = function(style) {
+
+        namespaceUtils.copyStyle(style, this.style);
+        this.updateStyle();
+    };
+
+    /**
+     * Used internally and implemented by specific Markup types to render themselves as Svg.
+     */
+    Autodesk.Viewing.Extensions.Markups.Core.Markup.prototype.updateStyle = function () {
+
+    };
+
+    /**
+     * Used internally to notify the markup that it is no longer being dragged (moved).&lt;br>
+     * Fires event Autodesk.Viewing.Extensions.Markups.Core.EVENT_MARKUP_DRAGGING.
+     */
+    Autodesk.Viewing.Extensions.Markups.Core.Markup.prototype.finishDragging = function() {
+
+        this.fireEvent({type: namespace.EVENT_MARKUP_DRAGGING, markup: this, dragging: false});
+    };
+
+    /**
+     * Used internally to notify the markup that it is now being edited.&lt;br>
+     * Fires event Autodesk.Viewing.Extensions.Markups.Core.EVENT_MARKUP_ENTER_EDITION.
+     */
+    Autodesk.Viewing.Extensions.Markups.Core.Markup.prototype.edit = function() {
+
+        this.fireEvent({type: namespace.EVENT_MARKUP_ENTER_EDITION, markup: this});
+    };
+
+    /**
+     * Used internally to signal that it is no longer being edited.&lt;br>
+     * Fires event Autodesk.Viewing.Extensions.Markups.Core.EVENT_MARKUP_CANCEL_EDITION.
+     */
+    Autodesk.Viewing.Extensions.Markups.Core.Markup.prototype.cancel = function() {
+
+        this.fireEvent({type: namespace.EVENT_MARKUP_CANCEL_EDITION, markup: this});
+    };
+
+    /**
+     * Used internally to signal that the markup is being deleted.&lt;br>
+     * Fires event Autodesk.Viewing.Extensions.Markups.Core.EVENT_MARKUP_DELETE_EDITION.
+     */
+    Autodesk.Viewing.Extensions.Markups.Core.Markup.prototype.deleteMarkup = function() {
+
+        this.fireEvent({type: namespace.EVENT_MARKUP_DELETE_EDITION, markup: this});
+    };
+
+    proto.setParent = function(parent) {
+    };
+
+    proto.setPosition = function(x, y) {
+    };
+
+    /**
+     * Used internally to get the {@link Autodesk.Viewing.Extensions.Markups.Core.EditMode EditMode}
+     * associated with the current Markup.&lt;br>
+     * Implemented by classes extending this one.
+     * @returns {Autodesk.Viewing.Extensions.Markups.Core.EditMode}
+     */
+    Autodesk.Viewing.Extensions.Markups.Core.Markup.prototype.getEditMode = function() {
+
+        console.warn('EditMode of markup type' + this.type + ' not defined.' );
+        return null;
+    };
+
+    /**
+     * Used internally to get the markup's position in browser pixel space.&lt;br>
+     * Notice that (0,0) is top left.&lt;br>
+     * See also
+     * [getClientSize()]{@link Autodesk.Viewing.Extensions.Markups.Core.Markup#getClientSize}.
+     * @returns {*}
+     */
+    Autodesk.Viewing.Extensions.Markups.Core.Markup.prototype.getClientPosition = function() {
+
+        var position = this.position;
+        return this.editor.positionFromMarkupsToClient(position.x, position.y);
+    };
+
+    /**
+     * Used internally to get the markup's bounding rect in browser pixel space.&lt;br>
+     * See also
+     * [getClientPosition()]{@link Autodesk.Viewing.Extensions.Markups.Core.Markup#getClientPosition}.
+     * @returns {*}
+     */
+    Autodesk.Viewing.Extensions.Markups.Core.Markup.prototype.getClientSize = function () {
+
+        var size = this.size;
+        return this.editor.sizeFromMarkupsToClient(size.x, size.y);
+    };
+
+    proto.setRotation = function(angle) {
+
+    };
+
+    proto.getRotation = function () {
+
+        return this.rotation;
+    };
+
+    proto.setSize = function(position, size) {
+
+    };
+
+    proto.isWidthConstrained = function() {
+
+        return this.constraintWidth;
+    };
+
+    proto.isHeightConstrained = function() {
+
+        return this.constraintHeight;
+    };
+
+    proto.isRotationConstrained = function() {
+
+        return this.constraintRotation;
+    };
+
+    /**
+     * Used to disable highlight on annotations while a new annotation is being created.
+     * @param {Boolean} disable - Whether (mouse) interactions are enable.
+     */
+    proto.disableInteractions = function(disable) {
+
+        this.interactionsDisabled = disable;
+    };
+
+    /**
+     *
+     * @param width
+     */
+    proto.setStrokeWidth = function(width) {
+
+    };
+
+    proto.constrainsToBounds = function(bounds) {
+
+    };
+
+    proto.onMouseDown = function(event) {
+
+        if (this.interactionsDisabled) {
+            return;
+        }
+
+        this.select();
+        this.editor.editFrame.startDrag();
+    };
+
+    /**
+     *
+     * @param idTarget
+     * @returns *
+     */
+    proto.generatePoint3d = function(idTarget) {
+
+        var viewer = this.viewer;
+        var polygon = this.generateBoundingPolygon();
+
+        function checkLineSegment(a, b) {
+
+            var point2d = namespaceUtils.checkLineSegment(a.x, a.y, b.x, b.y, idTarget);
+            var point3d = point2d &amp;&amp; viewer.clientToWorld(point2d.x, point2d.y);
+            return point3d &amp;&amp; point3d.point;
+        }
+
+        function checkPolygon(polygon) {
+
+            var point2d = namespaceUtils.checkPolygon(polygon, idTarget);
+            var point3d = point2d &amp;&amp; viewer.clientToWorld(point2d.x, point2d.y);
+            return point3d &amp;&amp; point3d.point;
+        }
+
+        // Try to avoid expensive calculations by checking some lines segments first.
+        // If line check cannot find a point the costly one by area is used.
+        // A ----midAB---- B
+        // |               |
+        // |     center    |
+        // |               |
+        // C --------------D
+
+        var xVertices = polygon.xVertices;
+        var yVertices = polygon.yVertices;
+
+        var midAB = new THREE.Vector2(xVertices[0] + xVertices[1], yVertices[0] + yVertices[1]).multiplyScalar(0.5);
+        var midAC = new THREE.Vector2(xVertices[0] + xVertices[3], yVertices[0] + yVertices[3]).multiplyScalar(0.5);
+        var midDB = new THREE.Vector2(xVertices[2] + xVertices[1], yVertices[2] + yVertices[1]).multiplyScalar(0.5);
+        var midDC = new THREE.Vector2(xVertices[2] + xVertices[3], yVertices[2] + yVertices[3]).multiplyScalar(0.5);
+        var center = midAC.clone().add(midDB).multiplyScalar(0.5);
+
+        var point3d =
+            checkLineSegment(center, midDB) ||
+            checkLineSegment(center, midAC) ||
+            checkLineSegment(center, midAB) ||
+            checkLineSegment(center, midDC);
+
+        return point3d || checkPolygon(polygon);
+    };
+
+    /**
+     *
+     * @returns {{min: {x: number, y: number}, max: {x: number, y: number}}}
+     */
+    proto.generateBoundingBox = function() {
+
+        var boundingBox = {min: {x: 0,y: 0}, max: {x: 0, y: 0}};
+
+        // Get bounding box from markup bounding polygon.
+        var polygon = this.generateBoundingPolygon();
+
+        var vertexCount = polygon.vertexCount;
+        var xVertices = polygon.xVertices;
+        var yVertices = polygon.yVertices;
+
+        var bbX0 = Number.POSITIVE_INFINITY;
+        var bbY0 = Number.POSITIVE_INFINITY;
+        var bbX1 = Number.NEGATIVE_INFINITY;
+        var bbY1 = Number.NEGATIVE_INFINITY;
+
+        for(var i = 0; i &lt; vertexCount; ++i) {
+
+            var bbX = xVertices[i];
+            var bbY = yVertices[i];
+
+            bbX0 = Math.min(bbX0, bbX);
+            bbY0 = Math.min(bbY0, bbY);
+            bbX1 = Math.max(bbX1, bbX);
+            bbY1 = Math.max(bbY1, bbY);
+        }
+
+        boundingBox.min.x = bbX0;
+        boundingBox.min.y = bbY0;
+        boundingBox.max.x = bbX1;
+        boundingBox.max.y = bbY1;
+
+        return boundingBox;
+    };
+
+    /**
+     *
+     * @returns {{vertexCount: number, xVertices: Float32Array, yVertices: Float32Array}}
+     */
+    proto.generateBoundingPolygon = function() {
+
+        var position = this.getClientPosition();
+        var halfSize = this.getClientSize();
+
+        halfSize.x *= 0.5;
+        halfSize.y *= 0.5;
+
+        var lt = new THREE.Vector3(-halfSize.x,-halfSize.y).add(position);
+        var rt = new THREE.Vector3( halfSize.x,-halfSize.y).add(position);
+        var rb = new THREE.Vector3( halfSize.x, halfSize.y).add(position);
+        var lb = new THREE.Vector3(-halfSize.x, halfSize.y).add(position);
+
+        if (this.rotation !== 0) {
+
+            var m1 = new THREE.Matrix4().makeTranslation(-position.x, -position.y, 0);
+            var m2 = new THREE.Matrix4().makeRotationZ(this.rotation);
+            var m3 = new THREE.Matrix4().makeTranslation(position.x, position.y, 0);
+            var transform = m3.multiply(m2).multiply(m1);
+
+            lt.applyMatrix4(transform);
+            rt.applyMatrix4(transform);
+            rb.applyMatrix4(transform);
+            lb.applyMatrix4(transform);
+        }
+
+        return { // packed for fast access in test algorithm.
+            vertexCount: 4,
+            xVertices : new Float32Array([lt.x, rt.x, rb.x, lb.x]),
+            yVertices : new Float32Array([lt.y, rt.y, rb.y, lb.y])
+        };
+    };
+
+    /**
+     * Implemented by extending classes.&lt;br>
+     * Gets called automatically when
+     * [generateData()]{@link Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore#generateData}
+     * @returns {null|Element} - Either null (default) or the metadata Svg node
+     */
+    proto.setMetadata = function() {
+
+        return null; // No metadata is injected by default.
+    };
+
+    proto.bindTouchEvents = function(domElement) {
+
+        this.hammer = new Hammer.Manager(domElement, {
+            recognizers: [
+                [Hammer.Tap, { event: 'singletap', pointers: 1, threshold: 2 } ]
+            ],
+            inputClass: Hammer.TouchInput
+        });
+
+        this.onSingleTapBinded = function(event) {
+            this.onMouseDown(event);
+        }.bind(this);
+        this.hammer.on("singletap", this.onSingleTapBinded);
+    };
+
+
+})();
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Autodesk.Viewing.ApplicationScreenModeDelegate.html">ApplicationScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.Comments.CommentsExtension.html">CommentsExtension</a></li><li><a href="Autodesk.Viewing.Document.html">Document</a></li><li><a href="Autodesk.Viewing.Extension.html">Extension</a></li><li><a href="Autodesk.Viewing.Extensions.FirstPerson.FirstPersonExtension.html">FirstPersonExtension</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.CreateCircle.html">CreateCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.DeleteCircle.html">DeleteCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditAction.html">EditAction</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditMode.html">EditMode</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.EditModeCircle.html">EditModeCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.Markup.html">Markup</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupRectangle.html">MarkupRectangle</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.MarkupsCore.html">MarkupsCore</a></li><li><a href="Autodesk.Viewing.Extensions.Markups.Core.SetCircle.html">SetCircle</a></li><li><a href="Autodesk.Viewing.Extensions.Measure.MeasureExtension.html">MeasureExtension</a></li><li><a href="Autodesk.Viewing.FileLoader.html">FileLoader</a></li><li><a href="Autodesk.Viewing.GuiViewer3D.html">GuiViewer3D</a></li><li><a href="Autodesk.Viewing.HotkeyManager.html">HotkeyManager</a></li><li><a href="Autodesk.Viewing.Initializer.html">Initializer</a></li><li><a href="Autodesk.Viewing.Model.html">Model</a></li><li><a href="Autodesk.Viewing.NullScreenModeDelegate.html">NullScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.Private.Preferences.html">Preferences</a></li><li><a href="Autodesk.Viewing.Private.ViewerState.html">ViewerState</a></li><li><a href="Autodesk.Viewing.ScreenModeDelegate.html">ScreenModeDelegate</a></li><li><a href="Autodesk.Viewing.ToolController.html">ToolController</a></li><li><a href="Autodesk.Viewing.ToolInterface.html">ToolInterface</a></li><li><a href="Autodesk.Viewing.UI.Button.html">Button</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html">ComboButton</a></li><li><a href="Autodesk.Viewing.UI.Control.html">Control</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html">ControlGroup</a></li><li><a href="Autodesk.Viewing.UI.DockingPanel.html">DockingPanel</a></li><li><a href="Autodesk.Viewing.UI.ObjectContextMenu.html">ObjectContextMenu</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html">RadioButtonGroup</a></li><li><a href="Autodesk.Viewing.UI.SettingsPanel.html">SettingsPanel</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html">ToolBar</a></li><li><a href="Autodesk.Viewing.Viewer3D.html">Viewer3D</a></li><li><a href="Autodesk.Viewing.ViewingApplication.html">ViewingApplication</a></li><li><a href="Autodesk.Viewing.ViewingUtilities.html">ViewingUtilities</a></li></ul><h3>Events</h3><ul><li><a href="Autodesk.Viewing.UI.Button.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Button.html#event:STATE_CHANGED">STATE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Button.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:STATE_CHANGED">STATE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ComboButton.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Control.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.Control.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ControlGroup.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:ACTIVE_BUTTON_CHANGED">ACTIVE_BUTTON_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.RadioButtonGroup.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:COLLAPSED_CHANGED">COLLAPSED_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:CONTROL_ADDED">CONTROL_ADDED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:CONTROL_REMOVED">CONTROL_REMOVED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:SIZE_CHANGED">SIZE_CHANGED</a></li><li><a href="Autodesk.Viewing.UI.ToolBar.html#event:VISIBILITY_CHANGED">VISIBILITY_CHANGED</a></li></ul><h3>Tutorials</h3><ul><li>feature_markup</li></ul>
+</nav>
+
+<br clear="both">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc3/jsdoc">JSDoc 3.3.0-alpha11</a> on Fri Apr 15 2016 17:19:51 GMT+0800 (CST)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

@@ -1,0 +1,122 @@
+html, body {
+    width: 100%;
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    background-color: #000;
+}
+
+#rcel {
+    width: 100%;
+    height: 100%;
+}
+
+.joystickOuterRing {
+    position:absolute;
+    width:70%;
+    height:70%;
+    left:calc((100% - 70%) / 2);
+    top:calc((100% - 70%) / 2);
+    border-style:none;
+    border-width:2px;
+    border-color: white;
+    background-color:#333333;
+    border-radius: 50%;
+}
+
+.joystickInnerRing {
+    position:absolute;
+    display:table;
+    font-size:x-large;
+    font-family: "Helvetica Neue Light", "Segoe UI Semilight", sans-serif;
+    color:#222222;
+    text-align: center;
+
+    width:20%;
+    height:20%;
+    left:40%;
+    top:40%;
+    border-radius: 50%;
+    background-color:white;
+}
+
+.joystickButton {
+    position:absolute;
+    display:table;
+    font-size:x-large;
+    font-family: "Helvetica Neue Light", "Segoe UI Semilight", sans-serif;
+    color:#ffffff;
+    text-align: center;
+
+    width:20%;
+    height:20%;
+    border-radius: 10%;
+}
+
+.sliderBody {
+    position:absolute;
+    height:100%;
+    width:25%;
+    left:38%;
+    background-color: #333333;
+}
+
+.sliderThumb {
+    position:absolute;
+    display:table;
+    height:10%;
+    width:100%;
+    bottom:45%;
+    font-family: "Helvetica Neue Light", "Segoe UI Semilight", sans-serif;
+    background-color: #ffffff;
+    color:#222222;
+    text-align: center;
+}
+
+.buttonText {
+    display: table-cell;
+    vertical-align: middle;
+}
+
+.tipText {
+    position:absolute;
+    font-size: smaller;
+    font-family: "Helvetica Neue Light", "Segoe UI Semilight", sans-serif;
+    color:#ffffff;
+    text-align: center;
+}
+
+.errorBox {
+    position:absolute;
+    display:table;
+    width:100%;
+    height:100%;
+    text-align: center;
+    background-color: rgba(0,0,0,0.5);
+}
+
+.errorText {
+    display:table-cell;
+    font-size: xx-large;
+    font-family: monospace;
+    color:red;
+    text-align: center;
+    vertical-align: middle;
+}
+
+@keyframes blink {
+  0% { opacity: 1.0; }
+  50% { opacity: 0.0; }
+  100% { opacity: 1.0; }
+}
+@-webkit-keyframes blink {
+  0% { opacity: 1.0; }
+  50% { opacity: 0.0; }
+  100% { opacity: 1.0; }
+}
+.blink {
+  animation: blink 1s linear infinite;
+  -webkit-animation: blink 1s linear infinite;
+}
