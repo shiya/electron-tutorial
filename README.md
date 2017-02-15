@@ -4,7 +4,6 @@
 ## Installation
 - Install [Node.js](https://nodejs.org/)
 - Start a project folder
-- Download a sample model [here](https://github.com/Developer-Autodesk/translated-models).
 - If you'd like to package your app into an install: Install XCode
 
 ## Develop
