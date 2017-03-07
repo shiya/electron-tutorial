@@ -61,8 +61,10 @@ function createWindow () {
 app.on('ready', createWindow);
 ```
 
-When you run `electron` this should open up a window on start up that says "Hello World".
-
+When you run `electron .` this should open up a window on start up that says "Hello World". If you followed the above steps, then *electron* has not been installed globally and so in order to run it you need to provide the path to it:
+```
+./node_modules/.bin/electron .
+```
 
 ### A 3D Application
 Download [this project](https://github.com/shiya/electron-tutorial/raw/solution/electron-tutorial-solution/visual-reports.zip) and put it in your root project.
